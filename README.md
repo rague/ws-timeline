@@ -1,3 +1,3 @@
 # Grist timeline plugin
 
-[/public]
+[/public](widget)
