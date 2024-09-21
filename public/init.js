@@ -1,7 +1,7 @@
 const secondsPerDay = 24 * 60 * 60;
 
-const params = new URLSearchParams(document.location.search);
-const paramEndDate = params.get("mode") == "fin";
+// const params = new URLSearchParams(document.location.search);
+// const paramEndDate = params.get("mode") == "fin";
 
 let _mappings;
 

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Ws-Timeline</title>
+
+
+  <link rel="stylesheet" type="text/css" href="../public/svg-with-js.min.css">
+  <!-- Import the custom Bootstrap 4 theme from our hosted CDN -->
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+  <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+
+  <!-- <script src="/widget/grist-plugin-api.js"></script> -->
+  <script>
+    const paramEndDate = true;
+  </script>
+  <script src="../public/widget.js"></script>
+  <script src="../public/init.js"></script>
+
+
+
+
+  <style>
+    .loader {
+      opacity: 1;
+      animation-name: fadeIn;
+      animation-duration: 2s;
+      animation-timing-function: ease-in;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+  </style>
+</head>
+
+<body id="readout">
+
+</body>
+
+</html>
