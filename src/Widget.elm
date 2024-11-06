@@ -6,7 +6,7 @@ import Browser.Dom
 import Browser.Events
 import Css
 import Dict exposing (Dict)
-import Field exposing (..)
+import Field exposing (Field)
 import Html
 import Html.Attributes as HA
 import Html.Events
@@ -48,7 +48,7 @@ type Msg
     | CancelChange String
     | FocusField String
     | NoOp
-    | SelectMsg String (Select.Msg ChoiceId)
+    | SelectMsg String (Select.Msg Field.ChoiceId)
 
 
 type alias Model =
@@ -202,7 +202,7 @@ inspectorView model =
                 Html.div [ HA.class "field" ]
                     [ Html.label [ HA.for field.name ] [ Html.text field.label ]
                     , case field.field.ofType of
-                        FChoice choices ->
+                        Field.Choice choices ->
                             case Dict.get field.name model.selectStates of
                                 Just selectState ->
                                     let
@@ -250,7 +250,7 @@ inspectorView model =
                                 Nothing ->
                                     Html.text ""
 
-                        FText True ->
+                        Field.Text True ->
                             Html.textarea
                                 [ HA.name field.name
                                 , HA.id field.name
@@ -305,21 +305,21 @@ inspectorView model =
                                 , HA.property "indeterminate" (Encode.bool field.multi)
                                 , HA.type_
                                     (case field.field.ofType of
-                                        FDateTime ->
+                                        Field.DateTime ->
                                             "datetime-local"
 
-                                        FBool ->
+                                        Field.Bool ->
                                             "checkbox"
 
                                         _ ->
                                             "text"
                                     )
-                                , if field.field.ofType == FBool then
+                                , if field.field.ofType == Field.Bool then
                                     HA.checked (Maybe.map ((==) "true") field.str |> Maybe.withDefault False)
 
                                   else
                                     HA.value <| Maybe.withDefault "" field.str
-                                , if field.field.ofType == FBool then
+                                , if field.field.ofType == Field.Bool then
                                     Html.Events.onClick
                                         (ChangeText field.name
                                             (Maybe.map
@@ -497,7 +497,7 @@ update msg model =
                                         |> Maybe.andThen
                                             (\( f, _ ) ->
                                                 case f.ofType of
-                                                    FChoice choices ->
+                                                    Field.Choice choices ->
                                                         ListX.find (\c -> c.id == item) choices
 
                                                     _ ->
@@ -508,7 +508,7 @@ update msg model =
                                                 Dict.update field (Maybe.map <| \( f, _ ) -> ( f, Val choice.label )) model.fields
                                             )
                                         |> Maybe.withDefault model.fields
-                                    , makeFieldUpdate_ model.timelineState.selection field (encodeChoiceId item)
+                                    , makeFieldUpdate_ model.timelineState.selection field (Field.encodeChoiceId item)
                                     )
 
                                 Just Select.Clear ->
@@ -733,7 +733,7 @@ receiveData data model =
                     List.filterMap
                         (\field ->
                             case field.ofType of
-                                FChoice _ ->
+                                Field.Choice _ ->
                                     Just ( field.id, Select.initState (Select.selectIdentifier field.id) )
 
                                 _ ->
@@ -1074,7 +1074,7 @@ debutField =
     { id = debutFieldId
     , label = "Début"
     , position = -10
-    , ofType = FDateTime
+    , ofType = Field.DateTime
     }
 
 
@@ -1086,7 +1086,7 @@ finField =
     { id = finFieldId
     , label = "Fin"
     , position = -10
-    , ofType = FDateTime
+    , ofType = Field.DateTime
     }
 
 
@@ -1098,12 +1098,12 @@ dureeField =
     { id = dureeFieldId
     , label = "Durée"
     , position = -5
-    , ofType = FFloat Standard False 0 2
+    , ofType = Field.Float Field.Standard False 0 2
     }
 
 
 defaultChoice =
-    { id = ChoiceString "def"
+    { id = Field.ChoiceString "def"
     , label = "def"
     , textColor = "#000"
     , backgroundColor = "#EEE"
@@ -1135,7 +1135,7 @@ receiveDecoder =
         (Decode.field "rows" <| Decode.list recordDecoder)
         (Decode.maybe <| Decode.field "selection" (Decode.list (Decode.field "id" Decode.int)))
         (Decode.field "editable"
-            (Decode.list (fieldDecoder defaultChoice))
+            (Decode.list (Field.decoder defaultChoice))
         )
 
 

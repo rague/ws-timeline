@@ -1,4 +1,4 @@
-module Field exposing (..)
+module Field exposing (ChoiceId(..), ChoiceRecord, Field, FieldType(..), NumberFormat(..), choiceIdToString, decoder, encodeChoiceId)
 
 import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder, Value)
@@ -16,17 +16,17 @@ type alias Field =
 
 
 type FieldType
-    = FText Bool -- mulitligne
-    | FFloat NumberFormat Bool Int Int
-    | FInt NumberFormat Bool
-    | FBool
-    | FDate
-    | FDateTime
-    | FToOne String
-    | FToMany String
-    | FChoice (List Choice)
-    | FChoiceList (List Choice)
-    | FUnknow
+    = Text Bool -- mulitligne
+    | Float NumberFormat Bool Int Int
+    | Int NumberFormat Bool
+    | Bool
+    | Date
+    | DateTime
+    | ToOne String
+    | ToMany String
+    | Choice (List ChoiceRecord)
+    | ChoiceList (List ChoiceRecord)
+    | Unknow
 
 
 type NumberFormat
@@ -36,7 +36,7 @@ type NumberFormat
     | Exp
 
 
-type alias Choice =
+type alias ChoiceRecord =
     { id : ChoiceId
     , label : String
     , textColor : String
@@ -73,8 +73,8 @@ encodeChoiceId cid =
             Encode.int int
 
 
-fieldDecoder : Choice -> Decoder Field
-fieldDecoder defaultChoice =
+decoder : ChoiceRecord -> Decoder Field
+decoder defaultChoice =
     Decode.succeed Field
         |> required "colId" Decode.string
         |> required "label" Decode.string
@@ -82,7 +82,7 @@ fieldDecoder defaultChoice =
         |> Pipeline.custom (fieldTypeDecoder defaultChoice)
 
 
-fieldTypeDecoder : Choice -> Decoder FieldType
+fieldTypeDecoder : ChoiceRecord -> Decoder FieldType
 fieldTypeDecoder defaultChoice =
     Decode.andThen
         (\t ->
@@ -96,26 +96,26 @@ fieldTypeDecoder defaultChoice =
             in
             case radical of
                 "Text" ->
-                    Decode.map FText <|
+                    Decode.map Text <|
                         Decode.oneOf [ Decode.at [ "widgetOptions", "wrap" ] Decode.bool, Decode.succeed False ]
 
                 "Numeric" ->
-                    Decode.succeed <| FFloat Standard False 0 10
+                    Decode.succeed <| Float Standard False 0 10
 
                 "Int" ->
-                    Decode.succeed <| FInt Standard False
+                    Decode.succeed <| Int Standard False
 
                 "Bool" ->
-                    Decode.succeed FBool
+                    Decode.succeed Bool
 
                 "Date" ->
-                    Decode.succeed FDate
+                    Decode.succeed Date
 
                 "Datetime" ->
-                    Decode.succeed FDateTime
+                    Decode.succeed DateTime
 
                 "Ref" ->
-                    Decode.map FChoice
+                    Decode.map Choice
                         (Decode.field "references" <| Decode.list (refDecoder defaultChoice))
 
                 "Choice" ->
@@ -131,7 +131,7 @@ fieldTypeDecoder defaultChoice =
                                             }
                                 )
                                 chl
-                                |> FChoice
+                                |> Choice
                         )
                         (Decode.at [ "widgetOptions", "choices" ] (Decode.list Decode.string))
                         (Decode.at [ "widgetOptions", "choiceOptions" ] (Decode.andThen (choicesDecoder defaultChoice) DecodeX.keys))
@@ -139,21 +139,21 @@ fieldTypeDecoder defaultChoice =
                 -- "ChoiceList" ->
                 --     Decode.succeed <| FChoiceList []
                 _ ->
-                    Decode.succeed FUnknow
+                    Decode.succeed Unknow
         )
         (Decode.field "type" Decode.string)
 
 
-choicesDecoder : Choice -> List String -> Decoder (Dict String Choice)
+choicesDecoder : ChoiceRecord -> List String -> Decoder (Dict String ChoiceRecord)
 choicesDecoder defaultChoice keys =
     List.map (\key -> Decode.field key (choiceDecoder defaultChoice key)) keys
         |> DecodeX.combine
         |> Decode.map (List.map (\c -> ( c.label, c )) >> Dict.fromList)
 
 
-choiceDecoder : Choice -> String -> Decoder Choice
+choiceDecoder : ChoiceRecord -> String -> Decoder ChoiceRecord
 choiceDecoder defaultChoice label =
-    Decode.succeed Choice
+    Decode.succeed ChoiceRecord
         |> hardcoded (ChoiceString label)
         |> hardcoded label
         |> optional "textColor" Decode.string defaultChoice.textColor
@@ -164,9 +164,9 @@ choiceDecoder defaultChoice label =
         |> optional "fontStrikethrough" Decode.bool defaultChoice.crossedOut
 
 
-refDecoder : Choice -> Decoder Choice
+refDecoder : ChoiceRecord -> Decoder ChoiceRecord
 refDecoder defaultChoice =
-    Decode.succeed Choice
+    Decode.succeed ChoiceRecord
         |> required "id" (Decode.map ChoiceInt Decode.int)
         |> required "label" Decode.string
         |> hardcoded defaultChoice.textColor
