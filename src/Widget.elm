@@ -6,6 +6,7 @@ import Browser.Dom
 import Browser.Events
 import Css
 import Dict exposing (Dict)
+import Field exposing (..)
 import Html
 import Html.Attributes as HA
 import Html.Events
@@ -1065,14 +1066,6 @@ type alias Record =
     }
 
 
-type alias Field =
-    { id : String
-    , label : String
-    , position : Int
-    , ofType : FieldType
-    }
-
-
 debutFieldId =
     "_timeline_Debut"
 
@@ -1109,39 +1102,6 @@ dureeField =
     }
 
 
-type FieldType
-    = FText Bool -- mulitligne
-    | FFloat NumberFormat Bool Int Int
-    | FInt NumberFormat Bool
-    | FBool
-    | FDate
-    | FDateTime
-    | FToOne String
-    | FToMany String
-    | FChoice (List Choice)
-    | FChoiceList (List Choice)
-    | FUnknow
-
-
-type NumberFormat
-    = Standard
-    | Currency String
-    | Thousands
-    | Exp
-
-
-type alias Choice =
-    { id : ChoiceId
-    , label : String
-    , textColor : String
-    , backgroundColor : String
-    , bold : Bool
-    , italic : Bool
-    , underline : Bool
-    , crossedOut : Bool
-    }
-
-
 defaultChoice =
     { id = ChoiceString "def"
     , label = "def"
@@ -1152,31 +1112,6 @@ defaultChoice =
     , underline = False
     , crossedOut = False
     }
-
-
-type ChoiceId
-    = ChoiceString String
-    | ChoiceInt Int
-
-
-choiceIdToString : ChoiceId -> String
-choiceIdToString cid =
-    case cid of
-        ChoiceString str ->
-            str
-
-        ChoiceInt int ->
-            String.fromInt int
-
-
-encodeChoiceId : ChoiceId -> Value
-encodeChoiceId cid =
-    case cid of
-        ChoiceString str ->
-            Encode.string str
-
-        ChoiceInt int ->
-            Encode.int int
 
 
 type FieldState
@@ -1200,7 +1135,7 @@ receiveDecoder =
         (Decode.field "rows" <| Decode.list recordDecoder)
         (Decode.maybe <| Decode.field "selection" (Decode.list (Decode.field "id" Decode.int)))
         (Decode.field "editable"
-            (Decode.list fieldDecoder)
+            (Decode.list (fieldDecoder defaultChoice))
         )
 
 
@@ -1279,110 +1214,6 @@ anyDecoder =
                 )
         , Decode.null ""
         ]
-
-
-fieldDecoder : Decoder Field
-fieldDecoder =
-    Decode.succeed Field
-        |> required "colId" Decode.string
-        |> required "label" Decode.string
-        |> hardcoded 0
-        |> Pipeline.custom fieldTypeDecoder
-
-
-fieldTypeDecoder : Decoder FieldType
-fieldTypeDecoder =
-    Decode.andThen
-        (\t ->
-            let
-                radical =
-                    if String.startsWith "Ref:" t then
-                        "Ref"
-
-                    else
-                        t
-            in
-            case radical of
-                "Text" ->
-                    Decode.map FText <|
-                        Decode.oneOf [ Decode.at [ "widgetOptions", "wrap" ] Decode.bool, Decode.succeed False ]
-
-                "Numeric" ->
-                    Decode.succeed <| FFloat Standard False 0 10
-
-                "Int" ->
-                    Decode.succeed <| FInt Standard False
-
-                "Bool" ->
-                    Decode.succeed FBool
-
-                "Date" ->
-                    Decode.succeed FDate
-
-                "Datetime" ->
-                    Decode.succeed FDateTime
-
-                "Ref" ->
-                    Decode.map FChoice
-                        (Decode.field "references" <| Decode.list refDecoder)
-
-                "Choice" ->
-                    Decode.map2
-                        (\chl opts ->
-                            List.map
-                                (\ch ->
-                                    Dict.get ch opts
-                                        |> Maybe.withDefault
-                                            { defaultChoice
-                                                | id = ChoiceString ch
-                                                , label = ch
-                                            }
-                                )
-                                chl
-                                |> FChoice
-                        )
-                        (Decode.at [ "widgetOptions", "choices" ] (Decode.list Decode.string))
-                        (Decode.at [ "widgetOptions", "choiceOptions" ] (Decode.andThen choicesDecoder DecodeX.keys))
-
-                -- "ChoiceList" ->
-                --     Decode.succeed <| FChoiceList []
-                _ ->
-                    Decode.succeed FUnknow
-        )
-        (Decode.field "type" Decode.string)
-
-
-choicesDecoder : List String -> Decoder (Dict String Choice)
-choicesDecoder keys =
-    List.map (\key -> Decode.field key (choiceDecoder key)) keys
-        |> DecodeX.combine
-        |> Decode.map (List.map (\c -> ( c.label, c )) >> Dict.fromList)
-
-
-choiceDecoder : String -> Decoder Choice
-choiceDecoder label =
-    Decode.succeed Choice
-        |> hardcoded (ChoiceString label)
-        |> hardcoded label
-        |> optional "textColor" Decode.string defaultChoice.textColor
-        |> optional "fillColor" Decode.string defaultChoice.backgroundColor
-        |> optional "fontBold" Decode.bool defaultChoice.bold
-        |> optional "fontItalic" Decode.bool defaultChoice.italic
-        |> optional "fontUnderline" Decode.bool defaultChoice.underline
-        |> optional "fontStrikethrough" Decode.bool defaultChoice.crossedOut
-
-
-refDecoder : Decoder Choice
-refDecoder =
-    Decode.succeed Choice
-        |> required "id" (Decode.map ChoiceInt Decode.int)
-        |> required "label" Decode.string
-        |> hardcoded defaultChoice.textColor
-        |> hardcoded defaultChoice.backgroundColor
-        |> hardcoded defaultChoice.bold
-        |> hardcoded defaultChoice.italic
-        |> hardcoded defaultChoice.underline
-        |> hardcoded defaultChoice.crossedOut
 
 
 styles =
