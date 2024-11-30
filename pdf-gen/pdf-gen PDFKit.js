@@ -71,10 +71,10 @@ fonts: Times (reg, bold, italic, bold italic),
 
 
 const PT_MM = 25.4 / 72;
-const MM_PT = 72/25.4;
+const MM_PT = 72 / 25.4;
 
 function pt2mm(pt) {
-    return pt * PT_MM;
+  return pt * PT_MM;
 }
 
 
@@ -277,9 +277,11 @@ function _drawPdfPage(page, doc) {
 
         let options = {
           align: talign,
-          width: max * MM_PT,
+          width: max * MM_PT * (item.multiline || talign == "right" ? 1 : 2),
           lineBreak: item.multiline !== undefined ? item.multiline : false,
-          height: height
+          // width: max * MM_PT,
+          // lineBreak: true,
+          height: item.multiline ? height : 0
         };
 
         let theight = doc.heightOfString(text, options);
@@ -288,7 +290,8 @@ function _drawPdfPage(page, doc) {
 
 
         // if(max) {
-        doc.text(text, (item.x - delta) * MM_PT, item.y * MM_PT + Math.max((height - theight) / 2, 0),
+        doc.text(text, (item.x - delta) * MM_PT, item.y * MM_PT,
+          // doc.text(text, (item.x - delta) * MM_PT, item.y * MM_PT + Math.max((height - theight) / 2, 0),
           options);
         // } else {
         // doc.text(text, item.x*MM_PT, item.y*MM_PT);

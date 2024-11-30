@@ -149,6 +149,55 @@ inspectorView model =
 
         amplitude =
             Maybe.map2 (\start end -> toFloat (end - start) / 3600000) maybeStart maybeEnd |> Maybe.withDefault 0
+
+        drawChoices =
+            \field choices ->
+                case Dict.get field.name model.selectStates of
+                    Just selectState ->
+                        let
+                            selectedItem =
+                                -- Maybe.map (\str -> Select.basicMenuItem { item = str, label = str }) field.str
+                                Maybe.andThen (\str -> ListX.find (\c -> c.label == str) choices) field.str
+                                    |> Maybe.map (\c -> Select.basicMenuItem { item = c.id, label = c.label })
+                        in
+                        Select.view
+                            (Select.single selectedItem
+                                |> Select.state selectState
+                                |> Select.menuItems
+                                    (List.map
+                                        (\c ->
+                                            Select.customMenuItem
+                                                { item = c.id
+                                                , label = c.label
+                                                , view =
+                                                    Styled.span
+                                                        [ SA.css
+                                                            [ Css.backgroundColor <| Css.hex c.backgroundColor
+                                                            , Css.color <| Css.hex c.textColor
+                                                            , Css.padding (Css.px 3)
+                                                            , Css.borderRadius (Css.px 3)
+                                                            ]
+                                                        ]
+                                                        [ Styled.text c.label ]
+                                                }
+                                        )
+                                        choices
+                                    )
+                                |> Select.placeholder
+                                    (if field.multi then
+                                        "<multiple>"
+
+                                     else
+                                        "<vide>"
+                                    )
+                                |> Select.setStyles selectStyles
+                                |> Select.clearable True
+                            )
+                            |> Styled.toUnstyled
+                            |> Html.map (SelectMsg field.name)
+
+                    Nothing ->
+                        Html.text ""
     in
     [ (if selSize > 1 then
         String.fromInt selSize ++ " tâches"
@@ -203,52 +252,10 @@ inspectorView model =
                     [ Html.label [ HA.for field.name ] [ Html.text field.label ]
                     , case field.field.ofType of
                         Field.Choice choices ->
-                            case Dict.get field.name model.selectStates of
-                                Just selectState ->
-                                    let
-                                        selectedItem =
-                                            -- Maybe.map (\str -> Select.basicMenuItem { item = str, label = str }) field.str
-                                            Maybe.andThen (\str -> ListX.find (\c -> c.label == str) choices) field.str
-                                                |> Maybe.map (\c -> Select.basicMenuItem { item = c.id, label = c.label })
-                                    in
-                                    Select.view
-                                        (Select.single selectedItem
-                                            |> Select.state selectState
-                                            |> Select.menuItems
-                                                (List.map
-                                                    (\c ->
-                                                        Select.customMenuItem
-                                                            { item = c.id
-                                                            , label = c.label
-                                                            , view =
-                                                                Styled.span
-                                                                    [ SA.css
-                                                                        [ Css.backgroundColor <| Css.hex c.backgroundColor
-                                                                        , Css.color <| Css.hex c.textColor
-                                                                        , Css.padding (Css.px 3)
-                                                                        , Css.borderRadius (Css.px 3)
-                                                                        ]
-                                                                    ]
-                                                                    [ Styled.text c.label ]
-                                                            }
-                                                    )
-                                                    choices
-                                                )
-                                            |> Select.placeholder
-                                                (if field.multi then
-                                                    "<multiple>"
+                            drawChoices field choices
 
-                                                 else
-                                                    "<vide>"
-                                                )
-                                            |> Select.setStyles selectStyles
-                                            |> Select.clearable True
-                                        )
-                                        |> Styled.toUnstyled
-                                        |> Html.map (SelectMsg field.name)
-
-                                Nothing ->
-                                    Html.text ""
+                        Field.Ref choices ->
+                            drawChoices field choices
 
                         Field.Text True ->
                             Html.textarea
@@ -500,6 +507,9 @@ update msg model =
                                                     Field.Choice choices ->
                                                         ListX.find (\c -> c.id == item) choices
 
+                                                    Field.Ref choices ->
+                                                        ListX.find (\c -> c.id == item) choices
+
                                                     _ ->
                                                         Nothing
                                             )
@@ -734,6 +744,9 @@ receiveData data model =
                         (\field ->
                             case field.ofType of
                                 Field.Choice _ ->
+                                    Just ( field.id, Select.initState (Select.selectIdentifier field.id) )
+
+                                Field.Ref _ ->
                                     Just ( field.id, Select.initState (Select.selectIdentifier field.id) )
 
                                 _ ->
@@ -1075,6 +1088,7 @@ debutField =
     , label = "Début"
     , position = -10
     , ofType = Field.DateTime
+    , values = Field.ListInt []
     }
 
 
@@ -1087,6 +1101,7 @@ finField =
     , label = "Fin"
     , position = -10
     , ofType = Field.DateTime
+    , values = Field.ListInt []
     }
 
 
@@ -1099,6 +1114,7 @@ dureeField =
     , label = "Durée"
     , position = -5
     , ofType = Field.Float Field.Standard False 0 2
+    , values = Field.ListFloat []
     }
 
 

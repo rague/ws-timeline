@@ -161,14 +161,15 @@ const PAPERSIZES = [
     { title: 'A3', width: 297, height: 420 },
     { title: 'A2', width: 420, height: 594 },
     { title: 'A2', width: 594, height: 841 },
-    { title: 'A1', width: 841, height: 1189 }
+    { title: 'A1', width: 841, height: 1189 },
+    { title: 'A0', width: 1189, height: 1682 }
 ]
 
 function findColor(string) {
     let a = string.split(" ");
     let j, len = a.length;
 
-    if(string.startsWith("#"))
+    if (string.startsWith("#"))
         return string;
 
     for (j = 0; j < len; j++) {
@@ -212,7 +213,7 @@ function prepareGrid(from, to, width) {
 
     let grid = gridFor(from, to, width);
 
-   
+
 
     let fac = width / duration;
 
@@ -393,7 +394,7 @@ function generate(rawlines, config) {
     let fullpageh = orient === 1 ? papersize.height : papersize.width;
     let mode = config.mode;
 
-  
+
 
     let pagew = fullpagew - marginleft - marginright;
     let pageh = fullpageh - margintop - marginbottom;
@@ -458,25 +459,25 @@ function generate(rawlines, config) {
 
 
     let grid = gridFor(from, to, mode === 0 ? width : height);
-    if(grid.unit >= 6) {
+    if (grid.unit >= 6) {
         let d = new Date(from);
         d.setHours(0);
         from = d.valueOf();
-    } else if(grid.unit === 3) {
+    } else if (grid.unit === 3) {
         let d = new Date(from);
         d.setHours(d.getHours() - (d.getHours() % 2));
         from = d.valueOf();
     }
 
     if (mode === 0) {
-        meanlineh = calcMeanLine(vpages, pageh, height, linecount, pageh - TITLE_HEIGHT, 6 * pt2mm(config.groupsFontSize));
+        meanlineh = calcMeanLine(vpages, pageh, height, linecount, pageh - TITLE_HEIGHT, 10 * pt2mm(config.groupsFontSize));
         pageinfos = calcPageInfos(vpages, pageh, meanlineh, margintop + AXIS_HEIGHT, mode);
         widths = calcWidths(hpages, pagew, pagew - COL_WIDTH);
 
         axis = prepareGrid(from, to, width);
         msu = width / (to - from);
     } else {
-        meanlineh = calcMeanLine(hpages, pagew, width, linecount, pagew, 120);
+        meanlineh = calcMeanLine(hpages, pagew, width, linecount, pagew, 200);
         pageinfos = calcPageInfos(hpages, pagew, meanlineh, margintop, mode);
         widths = calcWidths(vpages, pageh, pageh - COL_HEIGHT - TITLE_HEIGHT);
         axis = prepareGrid(from, to, height);
@@ -527,14 +528,16 @@ function generate(rawlines, config) {
                                 [idx * meanlineh + marginleft + AXIS_WIDTH, margintop + (TITLE_HEIGHT * (hidx === 0)), meanlineh * line.lines, fullpageh - (TITLE_HEIGHT * (hidx === 0)) - marginbottom - margintop]
                         });
                     }
-                    
+
                     if (hidx === 0) {
                         data.push({
                             type: 'text',
                             fillColor: '#000',
                             x: mode === 0 ? (marginleft + 1) : (idx * meanlineh + marginleft + AXIS_WIDTH + 1),
                             y: mode === 0 ? (idx * meanlineh + info.base + 1) : (margintop + TITLE_HEIGHT + 1),
-                            text: typeof line.label === 'string' ? line.label : line.label.join('\n'),
+                            text: typeof line.label === 'string' ? line.label :
+                                (typeof line.label === 'number' ? line.label + "" : line.label.join('\n')),
+                            multiline: true,
                             maxWidth: mode === 0 ? COL_WIDTH : meanlineh,
                             maxHeight: mode === 0 ? meanlineh : COL_WIDTH,
                         });
@@ -583,30 +586,32 @@ function generate(rawlines, config) {
                             fontSize: tfsize,
                         });
 
-                        let rest = 0;
+                        let rest = sh - (tfsize + 1);
 
-                        let drawDates = false;
+                        let drawDates = rest >= (2 * hfsize * 0.9) && sw > 7;
+
                         let content = "";
 
                         if (typeof section.label === 'string') {
-                            content = section.label;
+                            content = [section.label];
                         } else {
-                            content = section.label.join('\n');
+                            content = section.label;
                         }
 
-                        rest = sh - (tfsize + 1);
-                        drawDates = rest >= (2 * hfsize * 0.9) && sw > 7;
-
-                        clipped.push({
+                        content.forEach((t, i) => clipped.push({
                             type: 'text',
                             x: (mode === 0) ? Math.max(origin, sl + 1) : sl + 1,
-                            y: st + (drawDates ? hfsize : 0) + 1,
+                            y: (tfsize * i) + st + (drawDates ? hfsize : 0) + 1,
+
                             maxWidth: Math.max(0, sw - 2),
                             textAlign: align,
-                            multiline: multiline,
-                            maxHeight: sh - (drawDates ? 2 * hfsize : 0) - 2,
-                            text: content
-                        });
+                            multiline: (i + 1) == content.length ? multiline : false,
+                            maxHeight: sh - (drawDates ? 2 * hfsize : 0) - 2 - (i * tfsize),
+                            text: t
+                        }));
+
+
+
 
 
                         if (drawDates) {

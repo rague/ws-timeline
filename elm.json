@@ -7,7 +7,7 @@
     "dependencies": {
         "direct": {
             "ChristophP/elm-i18next": "4.2.1",
-            "Confidenceman02/elm-select": "11.2.0",
+            "Confidenceman02/elm-select": "12.1.0",
             "NoRedInk/elm-json-decode-pipeline": "1.0.1",
             "annaghi/dnd-list": "6.0.1",
             "elm/browser": "1.0.2",
@@ -26,6 +26,7 @@
             "justinmimbs/date": "4.1.0",
             "justinmimbs/time-extra": "1.2.0",
             "justinmimbs/timezone-data": "11.0.0",
+            "phosphor-icons/phosphor-elm": "2.1.0",
             "rtfeldman/elm-css": "18.0.0"
         },
         "indirect": {

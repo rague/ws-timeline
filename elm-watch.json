@@ -1,0 +1,17 @@
+{
+    "targets": {
+        "PdfSettings": {
+            "inputs": [
+                "src/PdfSettings.elm"
+            ],
+            "output": "pdf-gen/settings.js"
+        },
+        "Widget": {
+            "inputs": [
+                "src/Widget.elm"
+            ],
+            "output": "public/widget.js"
+        }
+    },
+    "serve": "pdf-gen/"
+}

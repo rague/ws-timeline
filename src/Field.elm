@@ -1,4 +1,4 @@
-module Field exposing (ChoiceId(..), ChoiceRecord, Field, FieldType(..), NumberFormat(..), choiceIdToString, decoder, encodeChoiceId)
+module Field exposing (ChoiceId(..), ChoiceRecord, Field, FieldType(..), NumberFormat(..), Values(..), choiceIdToString, decoder, encodeChoiceId)
 
 import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder, Value)
@@ -12,7 +12,12 @@ type alias Field =
     , label : String
     , position : Int
     , ofType : FieldType
+    , values : Values
     }
+
+
+
+-- type Values = VInt (List Int) | VFloat
 
 
 type FieldType
@@ -24,9 +29,16 @@ type FieldType
     | DateTime
     | ToOne String
     | ToMany String
+    | Ref (List ChoiceRecord)
     | Choice (List ChoiceRecord)
     | ChoiceList (List ChoiceRecord)
     | Unknow
+
+
+type Values
+    = ListInt (List { value : Int, label : String })
+    | ListFloat (List { value : Float, label : String })
+    | ListString (List { value : String, label : String })
 
 
 type NumberFormat
@@ -75,73 +87,186 @@ encodeChoiceId cid =
 
 decoder : ChoiceRecord -> Decoder Field
 decoder defaultChoice =
-    Decode.succeed Field
-        |> required "colId" Decode.string
-        |> required "label" Decode.string
-        |> hardcoded 0
-        |> Pipeline.custom (fieldTypeDecoder defaultChoice)
+    Decode.map3
+        (\id label ofType -> { id = id, label = label, ofType = ofType })
+        (Decode.field "colId" Decode.string)
+        (Decode.field "label" Decode.string)
+        (fieldTypeDecoder defaultChoice)
+        |> Decode.andThen
+            (\f ->
+                Decode.map
+                    (\values ->
+                        { id = f.id
+                        , label = f.label
+                        , position = 0
+                        , ofType = f.ofType
+                        , values = values
+                        }
+                    )
+                    (Decode.maybe (Decode.field "values" (valuesDecoderFor f.ofType))
+                        |> Decode.map (Maybe.withDefault (emptyValuesFor f.ofType))
+                    )
+            )
+
+
+valuesDecoder decdr vlist =
+    Decode.map2 (\value label -> { value = value, label = label })
+        (Decode.field "value" decdr)
+        (Decode.field "label" Decode.string)
+        |> Decode.maybe
+        |> Decode.list
+        |> Decode.map (List.filterMap identity >> vlist)
+
+
+valuesDecoderFor ofType =
+    case ofType of
+        Text _ ->
+            valuesDecoder Decode.string ListString
+
+        Float _ _ _ _ ->
+            valuesDecoder Decode.float ListFloat
+
+        Int _ _ ->
+            valuesDecoder Decode.int ListInt
+
+        Bool ->
+            valuesDecoder Decode.int ListInt
+
+        Date ->
+            valuesDecoder Decode.int ListInt
+
+        DateTime ->
+            valuesDecoder Decode.int ListInt
+
+        ToOne _ ->
+            valuesDecoder Decode.int ListInt
+
+        ToMany _ ->
+            valuesDecoder Decode.int ListInt
+
+        Ref _ ->
+            valuesDecoder Decode.int ListInt
+
+        Choice _ ->
+            valuesDecoder Decode.string ListString
+
+        ChoiceList _ ->
+            valuesDecoder Decode.string ListString
+
+        Unknow ->
+            Decode.succeed [] |> Decode.map ListInt
+
+
+emptyValuesFor ofType =
+    case ofType of
+        Text _ ->
+            ListString []
+
+        Float _ _ _ _ ->
+            ListFloat []
+
+        Int _ _ ->
+            ListInt []
+
+        Bool ->
+            ListInt []
+
+        Date ->
+            ListInt []
+
+        DateTime ->
+            ListInt []
+
+        ToOne _ ->
+            ListInt []
+
+        ToMany _ ->
+            ListInt []
+
+        Ref _ ->
+            ListInt []
+
+        Choice _ ->
+            ListString []
+
+        ChoiceList _ ->
+            ListString []
+
+        Unknow ->
+            ListString []
+
+
+
+-- |> required "values" decodeValues
 
 
 fieldTypeDecoder : ChoiceRecord -> Decoder FieldType
 fieldTypeDecoder defaultChoice =
-    Decode.andThen
-        (\t ->
-            let
-                radical =
-                    if String.startsWith "Ref:" t then
-                        "Ref"
+    Decode.field "type" Decode.string
+        |> Decode.andThen
+            (\t ->
+                let
+                    radical =
+                        if String.startsWith "Ref:" t then
+                            "Ref"
 
-                    else
-                        t
-            in
-            case radical of
-                "Text" ->
-                    Decode.map Text <|
-                        Decode.oneOf [ Decode.at [ "widgetOptions", "wrap" ] Decode.bool, Decode.succeed False ]
+                        else if String.startsWith "DateTime:" t then
+                            "DateTime"
 
-                "Numeric" ->
-                    Decode.succeed <| Float Standard False 0 10
+                        else
+                            t
+                in
+                case radical of
+                    "Text" ->
+                        Decode.map Text <|
+                            Decode.oneOf [ Decode.at [ "widgetOptions", "wrap" ] Decode.bool, Decode.succeed False ]
 
-                "Int" ->
-                    Decode.succeed <| Int Standard False
+                    "Numeric" ->
+                        Decode.succeed <| Float Standard False 0 10
 
-                "Bool" ->
-                    Decode.succeed Bool
+                    "Int" ->
+                        Decode.succeed <| Int Standard False
 
-                "Date" ->
-                    Decode.succeed Date
+                    "Bool" ->
+                        Decode.succeed Bool
 
-                "Datetime" ->
-                    Decode.succeed DateTime
+                    "Date" ->
+                        Decode.succeed Date
 
-                "Ref" ->
-                    Decode.map Choice
-                        (Decode.field "references" <| Decode.list (refDecoder defaultChoice))
+                    "DateTime" ->
+                        Decode.succeed DateTime
 
-                "Choice" ->
-                    Decode.map2
-                        (\chl opts ->
-                            List.map
-                                (\ch ->
-                                    Dict.get ch opts
-                                        |> Maybe.withDefault
-                                            { defaultChoice
-                                                | id = ChoiceString ch
-                                                , label = ch
-                                            }
-                                )
-                                chl
-                                |> Choice
-                        )
-                        (Decode.at [ "widgetOptions", "choices" ] (Decode.list Decode.string))
-                        (Decode.at [ "widgetOptions", "choiceOptions" ] (Decode.andThen (choicesDecoder defaultChoice) DecodeX.keys))
+                    "Ref" ->
+                        Decode.map Ref
+                            (Decode.oneOf
+                                [ Decode.field "references" <| Decode.list (refDecoder defaultChoice)
+                                , Decode.succeed []
+                                ]
+                            )
 
-                -- "ChoiceList" ->
-                --     Decode.succeed <| FChoiceList []
-                _ ->
-                    Decode.succeed Unknow
-        )
-        (Decode.field "type" Decode.string)
+                    "Choice" ->
+                        Decode.map2
+                            (\chl opts ->
+                                List.map
+                                    (\ch ->
+                                        Dict.get ch opts
+                                            |> Maybe.withDefault
+                                                { defaultChoice
+                                                    | id = ChoiceString ch
+                                                    , label = ch
+                                                }
+                                    )
+                                    chl
+                                    |> Choice
+                            )
+                            (Decode.at [ "widgetOptions", "choices" ] (Decode.list Decode.string))
+                            (Decode.at [ "widgetOptions", "choiceOptions" ] (Decode.andThen (choicesDecoder defaultChoice) DecodeX.keys))
+
+                    -- "ChoiceList" ->
+                    --     Decode.succeed <| FChoiceList []
+                    _ ->
+                        Decode.succeed Unknow
+            )
 
 
 choicesDecoder : ChoiceRecord -> List String -> Decoder (Dict String ChoiceRecord)
