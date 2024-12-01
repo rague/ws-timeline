@@ -381,7 +381,7 @@ inspectorView model =
             [ HA.style "position" "absolute"
             , HA.style "right" "0px"
             , HA.style "top" "0px"
-            , HA.style "width" "170px"
+            , HA.style "width" "200px"
             , HA.style "height" ((model.box.height |> String.fromInt) ++ "px")
             , HA.style "background-color" "#f7f7f7"
             , HA.style "font-family" "Arial, Helvetica, sans-serif"
