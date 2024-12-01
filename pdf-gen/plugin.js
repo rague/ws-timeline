@@ -117,7 +117,7 @@ window.addEventListener('load', (event) => {
         indexes = new Set(rawtable.id.map((v, i) => i));
 
 
-        const filters = settings.filters
+        const filters = settings.filters ?? {}
         for (var key in filters) {
             let filter = filters[key];
             if (filter.exclude) {
@@ -168,9 +168,7 @@ window.addEventListener('load', (event) => {
 
         if (choicemeta) {
 
-            if (choicemeta) {
-                choicemeta = choicemeta.choiceOptions;
-            }
+            choicemeta = choicemeta.choiceOptions;
 
         }
 
@@ -343,7 +341,7 @@ window.addEventListener('load', (event) => {
 
         metas = [];
 
-        if (settings && settings.table) {
+        if (settings?.table) {
             rawtable = await grist.docApi.fetchTable(settings.table);
             // console.log("RAWTABLE", rawtable)
 
@@ -360,13 +358,15 @@ window.addEventListener('load', (event) => {
         }
 
 
-        for (const column in settings.filters) {
-            const values = await valuesFor(column);
-            const col = metas.find(c => c.colId == column);
-            if (col) {
-                col.values = values;
-            }
+        if (settings?.filters) {
+            for (const column in (settings.filters)) {
+                const values = await valuesFor(column);
+                const col = metas.find(c => c.colId == column);
+                if (col) {
+                    col.values = values;
+                }
 
+            }
         }
 
         // console.log("--- METAS --- ", metas)
