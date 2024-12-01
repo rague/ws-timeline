@@ -1239,6 +1239,8 @@ body {
     margin: 0;
     padding: 0;
     background-color: white;
+    overflow: hidden;
+    color: black;
 }
 .field {
     padding-top: 10px;
