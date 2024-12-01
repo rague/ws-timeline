@@ -1250,6 +1250,7 @@ body {
     text-transform: uppercase;
     font-size: 10px;
     color: #262626;
+    display: block;
 }
 
 .field > input {
