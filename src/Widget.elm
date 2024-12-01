@@ -1238,6 +1238,7 @@ styles =
 body {
     margin: 0;
     padding: 0;
+    background-color: white;
 }
 .field {
     padding-top: 10px;
