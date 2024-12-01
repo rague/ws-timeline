@@ -1234,6 +1234,11 @@ anyDecoder =
 
 styles =
     """
+
+body {
+    margin: 0;
+    padding: 0;
+}
 .field {
     padding-top: 10px;
 }
