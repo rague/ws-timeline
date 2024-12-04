@@ -4,6 +4,8 @@ const secondsPerDay = 24 * 60 * 60;
 // const paramEndDate = params.get("mode") == "fin";
 
 let _mappings;
+let app;
+let setRecordsArgs;
 
 window.addEventListener('load', (event) => {
   console.log('La page est complètement chargée');
@@ -20,7 +22,8 @@ window.addEventListener('load', (event) => {
 
 
   // const seedFlag = [randInts[0], randInts.slice(1)]
-  var app = Elm.Widget.init();
+  app = Elm.Widget.init();
+
 
   app.ports.updateOptions.subscribe(opts => {
     options = opts;
@@ -151,7 +154,7 @@ window.addEventListener('load', (event) => {
         })
       );
     } catch (err) {
-      console.error(err);
+      sendError(err);
     }
   }
   );
@@ -288,7 +291,7 @@ window.addEventListener('load', (event) => {
           let orig = Object.fromEntries(cols.map(col => [col, t[col][index]]));
           // let orig = await grist.fetchSelectedRecord(id, {format: "rows", includeColumns: "all", keepEncoded: false});
 
-          if(!evt) {
+          if (!evt) {
             evt = {};
           }
 
@@ -318,7 +321,7 @@ window.addEventListener('load', (event) => {
     } catch (err) {
       // Nothing clever we can do here, just log the error.
       // Grist should actually show the error in the UI, but it doesn't.
-      console.error(err);
+      sendError(err);
     }
   }
   );
@@ -378,7 +381,7 @@ window.addEventListener('load', (event) => {
     } catch (err) {
       // Nothing clever we can do here, just log the error.
       // Grist should actually show the error in the UI, but it doesn't.
-      console.error(err);
+      sendError(err);
     }
   }
   );
@@ -560,6 +563,7 @@ window.addEventListener('load', (event) => {
             return f;
         }));
       console.log("EDITABLE", editableTypes);
+      setRecordsArgs = { rows: data, editable: editableTypes };
       app.ports.setRecords.send(newSelection ? { rows: data, selection: newSelection, editable: editableTypes } : { rows: data, editable: editableTypes });
       if (newSelection) grist.setSelectedRows(newSelection);
       // newSelection = undefined;
@@ -715,8 +719,7 @@ async function upsertGristRecord(gristEvent) {
   } catch (err) {
     // Nothing clever we can do here, just log the error.
     // Grist should actually show the error in the UI, but it doesn't.
-    console.error(err);
-
+    sendError(err);
   }
 }
 
@@ -731,8 +734,7 @@ async function updateGristRecords(gristEvents) {
   } catch (err) {
     // Nothing clever we can do here, just log the error.
     // Grist should actually show the error in the UI, but it doesn't.
-    console.error(err);
-
+    sendError(err);
   }
 }
 
@@ -759,4 +761,10 @@ async function deleteEvent(event) {
   } catch (e) {
     console.error(e);
   }
+}
+
+function sendError(err) {
+  console.error(err);
+  app.ports.setError.send(err.message);
+  app.ports.setRecords.send(setRecordsArgs);
 }

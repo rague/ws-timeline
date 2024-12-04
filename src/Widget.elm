@@ -15,10 +15,11 @@ import Html.Styled.Attributes as SA
 import Iso8601
 import Json.Decode as Decode exposing (Decoder, Value)
 import Json.Decode.Extra as DecodeX
-import Json.Decode.Pipeline as Pipeline exposing (hardcoded, optional, required)
+import Json.Decode.Pipeline exposing (optional, required)
 import Json.Encode as Encode
 import List.Extra as ListX
 import Moment
+import Phosphor exposing (IconWeight(..))
 import Platform.Cmd as Cmd
 import Select
 import Select.Styles as Styles
@@ -49,11 +50,14 @@ type Msg
     | FocusField String
     | NoOp
     | SelectMsg String (Select.Msg Field.ChoiceId)
+    | CloseError Int
+    | AddError String
 
 
 type alias Model =
     { timelineState : Timeline.Models.TimelineBox
-    , error : Maybe String
+    , error : List ( Int, String )
+    , errorId : Int
     , box :
         { width : Int
         , height : Int
@@ -78,7 +82,8 @@ main =
                             -- groupsData
                             |> Timeline.canEditGroups False
                             |> Timeline.canSortGroups False
-                  , error = Nothing
+                  , error = []
+                  , errorId = 0
                   , box =
                         { width = 1000
                         , height = 500
@@ -99,21 +104,34 @@ main =
             \model ->
                 { title = "WeSchedule"
                 , body =
-                    case model.error of
-                        Just err ->
-                            [ Html.text err ]
+                    [ Html.node "style" [] [ Html.text Timeline.styles ]
+                    , Html.node "style" [] [ Html.text styles ]
+                    , Timeline.view model.timelineState model.box
+                        |> Html.map TimelineMsg
+                    , if model.showInspector == False || Timeline.Models.selectionIsEmpty model.timelineState.selection then
+                        Html.text ""
 
-                        Nothing ->
-                            [ Html.node "style" [] [ Html.text Timeline.styles ]
-                            , Html.node "style" [] [ Html.text styles ]
-                            , Timeline.view model.timelineState model.box
-                                |> Html.map TimelineMsg
-                            , if model.showInspector == False || Timeline.Models.selectionIsEmpty model.timelineState.selection then
-                                Html.text ""
+                      else
+                        inspectorView model
+                    , if List.isEmpty model.error then
+                        Html.text ""
 
-                              else
-                                inspectorView model
-                            ]
+                      else
+                        Html.div [ HA.class "errors" ] <|
+                            List.map
+                                (\( iderr, err ) ->
+                                    Html.div [ HA.class "error" ]
+                                        [ Html.text err
+                                        , Html.button [ Html.Events.onClick (CloseError iderr) ]
+                                            [ Phosphor.x Regular
+                                                |> Phosphor.withSize 14
+                                                |> Phosphor.withSizeUnit "px"
+                                                |> Phosphor.toHtml [ HA.style "vertical-align" "sub" ]
+                                            ]
+                                        ]
+                                )
+                                model.error
+                    ]
                 }
         , subscriptions =
             \model ->
@@ -121,6 +139,7 @@ main =
                     [ setRecords Receive
                     , setSelection ChangeSelection
                     , setOptions ChangeOptions
+                    , setError AddError
                     , Browser.Events.onResize sizeToMsg
                     , Sub.map TimelineMsg (Timeline.subscriptions model.timelineState)
                     ]
@@ -399,6 +418,18 @@ sizeToMsg w h =
     WindowResize { width = w, height = h }
 
 
+addError : String -> Model -> Model
+addError err model =
+    if ListX.find (\( _, e ) -> e == err) model.error == Nothing then
+        { model
+            | error = ( model.errorId, err ) :: List.take 4 model.error
+            , errorId = model.errorId + 1
+        }
+
+    else
+        model
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
@@ -411,12 +442,7 @@ update msg model =
         ChangeSelection data ->
             case Decode.decodeValue (Decode.list (Decode.field "id" Decode.int)) data of
                 Err err ->
-                    ( { model
-                        | error =
-                            Just (Decode.errorToString err)
-                      }
-                    , Cmd.none
-                    )
+                    ( addError (Decode.errorToString err) model, Cmd.none )
 
                 Ok ids ->
                     let
@@ -431,12 +457,7 @@ update msg model =
         ChangeOptions data ->
             case Decode.decodeValue optionsDecoder data of
                 Err err ->
-                    ( { model
-                        | error =
-                            Just (Decode.errorToString err)
-                      }
-                    , Cmd.none
-                    )
+                    ( addError (Decode.errorToString err) model, Cmd.none )
 
                 Ok options ->
                     ( { model
@@ -541,6 +562,12 @@ update msg model =
 
         FocusField field ->
             ( { model | focus = field }, Cmd.none )
+
+        CloseError id ->
+            ( { model | error = List.filter (\( iderr, _ ) -> iderr /= id) model.error }, Cmd.none )
+
+        AddError str ->
+            ( addError str model, Cmd.none )
 
 
 timelineUpdate : Timeline.Msg -> Model -> ( Model, Cmd Msg )
@@ -685,7 +712,7 @@ receiveData : Value -> Model -> ( Model, Cmd Msg )
 receiveData data model =
     case Decode.decodeValue receiveDecoder data of
         Err err ->
-            ( { model | error = Just (Decode.errorToString err) }, Cmd.none )
+            ( addError (Decode.errorToString err) model, Cmd.none )
 
         Ok { records, maybeSelection, editable } ->
             let
@@ -754,7 +781,6 @@ receiveData data model =
                         )
                         editable
                         |> Dict.fromList
-                , error = Nothing
               }
             , Cmd.none
             )
@@ -795,7 +821,7 @@ makeFieldUpdate model field str =
                     , changeAmplitude = 0
                     }
 
-            Err err ->
+            Err _ ->
                 Cmd.none
 
     else if field == finFieldId then
@@ -810,7 +836,7 @@ makeFieldUpdate model field str =
                     , setFin = Iso8601.toUtcDateTimeString date
                     }
 
-            Err err ->
+            Err _ ->
                 Cmd.none
 
     else if field == dureeFieldId then
@@ -1000,6 +1026,9 @@ port setSelection : (Value -> msg) -> Sub msg
 
 
 port setOptions : (Value -> msg) -> Sub msg
+
+
+port setError : (String -> msg) -> Sub msg
 
 
 modifyRecordsDelta : { ids : List Int, changeDebut : Int, changeAmplitude : Int } -> Cmd msg
@@ -1266,6 +1295,30 @@ body {
 
 }
 
+.errors {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    
+}
+
+.error {
+    background-color: #F00;
+    padding: 8px 4px 8px 16px;
+    margin: 5px;
+    border: 1px solid #F00;
+    font-family: sans-serif;
+    font-size: 13px;
+    color: white;
+}
+
+.error button {
+    margin-left: 6px;
+    border: none;
+    font-size: 10px;
+    background: none;
+    color: white;
+}
 """
 
 
