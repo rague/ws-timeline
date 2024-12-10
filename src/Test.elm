@@ -1,23 +1,17 @@
 module Test exposing (main)
 
 import Array
-import Bounce
 import Browser
 import Browser.Dom
 import Browser.Events
-import Dict
-import Field
 import Html
 import Json.Decode exposing (Value)
-import Json.Decode.Pipeline
 import Phosphor exposing (IconWeight(..))
 import Platform.Cmd as Cmd
-import Svg.Attributes
 import Task
 import Time
 import Timeline
 import Timeline.Models exposing (Group, Interaction(..), Section)
-import Widget.Language
 
 
 type Msg
@@ -39,7 +33,7 @@ type alias Model =
 
 main : Program Value Model Msg
 main =
-    Browser.element
+    Browser.document
         { init =
             \_ ->
                 ( { timelineState =
@@ -65,13 +59,15 @@ main =
         }
 
 
-view : Model -> Html.Html Msg
+view : Model -> { title : String, body : List (Html.Html Msg) }
 view model =
-    Html.div []
+    { title = "Timeline"
+    , body =
         [ Html.node "style" [] [ Html.text Timeline.styles ]
         , Timeline.view model.timelineState model.box
             |> Html.map TimelineMsg
         ]
+    }
 
 
 sizeToMsg : Int -> Int -> Msg
