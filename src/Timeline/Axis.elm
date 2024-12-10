@@ -1,6 +1,7 @@
 module Timeline.Axis exposing (axis, getGrid, hview, vview)
 
 import Array exposing (Array)
+import Cldr.Locale
 import Color
 import Html exposing (Html)
 import List.Extra as Extra
@@ -46,6 +47,107 @@ type alias AxisDef =
     }
 
 
+axisDefs : List AxisDef
+axisDefs =
+    [ -- unit  = fraction of 1 hour
+      { unit = 1 / 18
+      , snap = 1 / 12
+      , divs =
+            [ { delta = 5, unit = Minute, hformat = Just "", vformat = Just "" }
+            , { delta = 15, unit = Minute, hformat = Nothing, vformat = Nothing }
+            , { delta = 1, unit = Hour, hformat = Just "xx", vformat = Just "xx" }
+            ]
+      }
+    , { unit = 1 / 6
+      , snap = 1 / 12
+      , divs =
+            [ { delta = 15, unit = Minute, hformat = Nothing, vformat = Nothing }
+            , { delta = 1, unit = Hour, hformat = Nothing, vformat = Nothing }
+            , { delta = 1, unit = Day, hformat = Just "xx", vformat = Just "xx" }
+            ]
+      }
+    , { unit = 1 / 5
+      , snap = 1 / 4
+      , divs =
+            [ { delta = 30, unit = Minute, hformat = Nothing, vformat = Nothing }
+            , { delta = 1, unit = Hour, hformat = Nothing, vformat = Nothing }
+            , { delta = 1, unit = Day, hformat = Just "xx", vformat = Just "xx" }
+            ]
+      }
+    , { unit = 1 / 2
+      , snap = 1 / 2
+      , divs =
+            [ { delta = 2, unit = Hour, hformat = Nothing, vformat = Nothing }
+            , { delta = 12, unit = Hour, hformat = Just "", vformat = Nothing }
+            , { delta = 1, unit = Day, hformat = Just "xx", vformat = Just "xx" }
+            ]
+      }
+    , { unit = 1
+      , snap = 1
+      , divs =
+            [ { delta = 3, unit = Hour, hformat = Nothing, vformat = Nothing }
+
+            -- , { delta = 12, unit = Hour, hformat = Just "", vformat = Nothing }
+            -- , { delta = 1, unit = Day, hformat = Just "ddd dd/MM", vformat = Just "ddd dd/MM" }
+            , { delta = 1, unit = Day, hformat = Just "ddd dd", vformat = Just "ddd dd" }
+            , { delta = 1, unit = Month, hformat = Just "MMMM yyyy", vformat = Just "MMMM yyyy" }
+            ]
+      }
+    , { unit = 2
+      , snap = 2
+      , divs =
+            [ { delta = 6, unit = Hour, hformat = Nothing, vformat = Nothing }
+
+            -- , { delta = 12, unit = Hour, hformat = Just "", vformat = Nothing }
+            , { delta = 1, unit = Day, hformat = Just "ddd dd", vformat = Just "ddd dd/MM" }
+            , { delta = 1, unit = Month, hformat = Just "MMMM yyyy", vformat = Just "MMMM yyyy" }
+            ]
+      }
+    , { unit = 4
+      , snap = 6
+      , divs =
+            [ { delta = 12, unit = Hour, hformat = Just "", vformat = Nothing }
+            , { delta = 1, unit = Day, hformat = Nothing, vformat = Nothing }
+            , { delta = 1, unit = Month, hformat = Just "MMMM yyyy", vformat = Just "MMMM yyyy" }
+            ]
+      }
+    , { unit = 6
+      , snap = 12
+      , divs =
+            [ { delta = 1, unit = Day, hformat = Nothing, vformat = Nothing }
+            , { delta = 1, unit = Week, hformat = Nothing, vformat = Nothing }
+            , { delta = 1, unit = Month, hformat = Just "MMMM yyyy", vformat = Just "MMMM yyyy" }
+            ]
+      }
+    , { unit = 12
+      , snap = 12
+      , divs =
+            [ { delta = 1, unit = Day, hformat = Just "dd", vformat = Nothing }
+            , { delta = 1, unit = Week, hformat = Nothing, vformat = Nothing }
+            , { delta = 1, unit = Month, hformat = Just "MMMM yyyy", vformat = Just "MMMM yyyy" }
+            ]
+      }
+    , { unit = 40
+      , snap = 24
+      , divs =
+            [ { delta = 1, unit = Day, hformat = Just "", vformat = Nothing }
+            , { delta = 1, unit = Week, hformat = Just "ddd dd", vformat = Nothing }
+            , { delta = 1, unit = Month, hformat = Just "MMMM yyyy", vformat = Just "MMMM yyyy" }
+            ]
+      }
+
+    -- ,{ unit = 80
+    -- , snap = 168
+    -- , divs =
+    --     [ { delta = 1, unit = Week, hformat = Just "ddd dd", vformat = Nothing }
+    --     , { delta = 1, unit = Month, hformat = Nothing, vformat = Nothing }
+    --     , { delta = 1, unit = Year, hformat = Nothing, vformat = Nothing }
+    --     ]
+    -- }
+    , lastDef
+    ]
+
+
 lastDef : AxisDef
 lastDef =
     { unit = 200
@@ -56,101 +158,6 @@ lastDef =
         , { delta = 1, unit = Year, hformat = Nothing, vformat = Nothing }
         ]
     }
-
-
-axisDefs : List AxisDef
-axisDefs =
-    [ -- unit  = fraction of 1 hour
-      { unit = 1 / 12
-      , snap = 1 / 12
-      , divs =
-            [ { delta = 5, unit = Minute, hformat = Just "", vformat = Just "" }
-            , { delta = 15, unit = Minute, hformat = Nothing, vformat = Nothing }
-            , { delta = 1, unit = Hour, hformat = Just "EEE dd/MM", vformat = Just "EEE dd/MM" }
-            ]
-      }
-    , { unit = 1 / 6
-      , snap = 1 / 12
-      , divs =
-            [ { delta = 15, unit = Minute, hformat = Nothing, vformat = Nothing }
-            , { delta = 1, unit = Hour, hformat = Nothing, vformat = Nothing }
-            , { delta = 1, unit = Day, hformat = Just "EEE dd/MM", vformat = Just "EEE dd/MM" }
-            ]
-      }
-    , { unit = 1 / 3
-      , snap = 1 / 4
-      , divs =
-            [ { delta = 30, unit = Minute, hformat = Nothing, vformat = Nothing }
-            , { delta = 1, unit = Hour, hformat = Nothing, vformat = Nothing }
-            , { delta = 1, unit = Day, hformat = Just "EEE dd/MM", vformat = Just "EEE dd/MM" }
-            ]
-      }
-    , { unit = 1 / 2
-      , snap = 1 / 2
-      , divs =
-            [ { delta = 1, unit = Hour, hformat = Nothing, vformat = Nothing }
-            , { delta = 6, unit = Hour, hformat = Just "", vformat = Nothing }
-            , { delta = 1, unit = Day, hformat = Just "EEE dd/MM", vformat = Just "EEE dd/MM" }
-            ]
-      }
-    , { unit = 1
-      , snap = 1
-      , divs =
-            [ { delta = 2, unit = Hour, hformat = Nothing, vformat = Nothing }
-            , { delta = 12, unit = Hour, hformat = Just "", vformat = Nothing }
-            , { delta = 1, unit = Day, hformat = Just "EEE dd/MM", vformat = Just "EEE dd/MM" }
-            ]
-      }
-    , { unit = 2
-      , snap = 2
-      , divs =
-            [ { delta = 4, unit = Hour, hformat = Nothing, vformat = Nothing }
-            , { delta = 12, unit = Hour, hformat = Just "", vformat = Nothing }
-            , { delta = 1, unit = Day, hformat = Just "EEE dd/MM", vformat = Just "EEE dd/MM" }
-            ]
-      }
-    , { unit = 4
-      , snap = 6
-      , divs =
-            [ { delta = 12, unit = Hour, hformat = Just "", vformat = Nothing }
-            , { delta = 1, unit = Day, hformat = Nothing, vformat = Nothing }
-            , { delta = 1, unit = Month, hformat = Just "MMM y", vformat = Just "MMM y" }
-            ]
-      }
-    , { unit = 6
-      , snap = 12
-      , divs =
-            [ { delta = 1, unit = Day, hformat = Nothing, vformat = Nothing }
-            , { delta = 1, unit = Week, hformat = Nothing, vformat = Nothing }
-            , { delta = 1, unit = Month, hformat = Just "MMM y", vformat = Just "MMM y" }
-            ]
-      }
-    , { unit = 12
-      , snap = 12
-      , divs =
-            [ { delta = 1, unit = Day, hformat = Just "dd", vformat = Nothing }
-            , { delta = 1, unit = Week, hformat = Nothing, vformat = Nothing }
-            , { delta = 1, unit = Month, hformat = Just "MMM y", vformat = Just "MMM y" }
-            ]
-      }
-    , { unit = 40
-      , snap = 24
-      , divs =
-            [ { delta = 1, unit = Day, hformat = Just "", vformat = Nothing }
-            , { delta = 1, unit = Week, hformat = Just "EEE dd", vformat = Nothing }
-            , { delta = 1, unit = Month, hformat = Just "MMM y", vformat = Just "MMM y" }
-            ]
-      }
-    -- ,{ unit = 80
-    -- , snap = 168
-    -- , divs =
-    --     [ { delta = 1, unit = Week, hformat = Just "EEE dd", vformat = Nothing }
-    --     , { delta = 1, unit = Month, hformat = Nothing, vformat = Nothing }
-    --     , { delta = 1, unit = Year, hformat = Nothing, vformat = Nothing }
-    --     ]
-    -- }
-    , lastDef
-    ]
 
 
 axisWeight : Array Float
@@ -178,8 +185,8 @@ getGrid val =
         |> Maybe.withDefault lastDef
 
 
-axis : Direction -> Time.Zone -> Float -> Float -> Float -> List Instruction
-axis dir zone from to size =
+axis : Direction -> Cldr.Locale.Locale -> Time.Zone -> Float -> Float -> Float -> List Instruction
+axis dir locale zone from to size =
     let
         duration =
             to - from
@@ -192,11 +199,12 @@ axis dir zone from to size =
 
         safe =
             if dir == Horizontal then
-                70
+                100
 
             else
                 20
     in
+    -- DrawText ((to - from) / 2 * fac) 2 10 (String.fromFloat grid.unit)
     List.concat <|
         List.indexedMap
             (\wi div ->
@@ -228,7 +236,8 @@ axis dir zone from to size =
                                         (Array.get wi fontSize
                                             |> Maybe.withDefault 10
                                         )
-                                        (Moment.format zone
+                                        (Moment.format locale
+                                            zone
                                             div.unit
                                             (if dir == Horizontal then
                                                 div.hformat
@@ -262,11 +271,11 @@ axis dir zone from to size =
             grid.divs
 
 
-hview : List (Html.Attribute msg) -> Time.Zone -> Int -> Int -> Float -> Float -> Html msg
-hview attrs zone width height from to =
+hview : List (Html.Attribute msg) -> Cldr.Locale.Locale -> Time.Zone -> Int -> Int -> Float -> Float -> Html msg
+hview attrs locale zone width height from to =
     let
         instructions =
-            axis Horizontal zone from to (toFloat width)
+            axis Horizontal locale zone from to (toFloat width)
     in
     Svg.svg
         (attrs
@@ -312,11 +321,11 @@ hview attrs zone width height from to =
         ]
 
 
-vview : List (Html.Attribute msg) -> Time.Zone -> Int -> Int -> Float -> Float -> Html msg
-vview attrs zone width height from to =
+vview : List (Html.Attribute msg) -> Cldr.Locale.Locale -> Time.Zone -> Int -> Int -> Float -> Float -> Html msg
+vview attrs locale zone width height from to =
     let
         instructions =
-            axis Vertical zone from to (toFloat height)
+            axis Vertical locale zone from to (toFloat height)
     in
     Svg.svg
         (attrs

@@ -1,0 +1,17 @@
+{
+    "startDate": "Date de début",
+    "endDate": "Date de fin",
+    "duration": "Durée",
+    "groupBy": "Grouper par",
+    "subgroupBy": "Puis grouper par",
+    "color": "Couleur",
+    "comment": "Commentaire",
+    "content": "Contenu",
+    "editableColumns": "Colonnes éditables",
+    "moment": "moment",
+    "moment_plural": "moments",
+    "cumulativeDuration": "Durée cumulée : ",
+    "timeRange": "Fourchette horaire : ",
+    "hoursShort": "h",
+    "daysShort": "j"
+}

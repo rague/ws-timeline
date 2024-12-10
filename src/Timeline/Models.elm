@@ -63,6 +63,7 @@ module Timeline.Models exposing
     , warningName
     )
 
+import Cldr.Locale exposing (Locale)
 import Color exposing (Color)
 import Dict exposing (Dict)
 import DnDList
@@ -290,11 +291,11 @@ type alias TimelineBox =
     , interaction : Interaction
     , standby : Bool
     , dnd : DnDList.Model
+    , locale : Locale
     , zone : Time.Zone
     , canSortGroups : Bool
     , canEditGroups : Bool
     , currentPosix : Posix
-    , showHelp : Bool
     }
 
 
@@ -672,13 +673,13 @@ toMeshes first taches =
                 -- vec4 (1 * d) (1 * d) (1 * d) a
                 -- Math.Vector4.setW 0.5 (color tache.color)
                 -- color tache.color
+                hasComment =
+                    if section.hasComment then
+                        1
 
-                hasComment = (if section.hasComment then
-                            1
+                    else
+                        0
 
-                         else
-                            0
-                        )
                 topleft =
                     Vertex (vec2 start line) background selected border middle hasComment
 
@@ -688,8 +689,8 @@ toMeshes first taches =
                 botleft =
                     Vertex (vec2 start (line + 1)) background selected border middle hasComment
 
-                botright = Vertex (vec2 end (line + 1)) background selected border middle hasComment
-                        
+                botright =
+                    Vertex (vec2 end (line + 1)) background selected border middle hasComment
             in
             [ ( topleft
               , topright

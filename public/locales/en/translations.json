@@ -1,0 +1,17 @@
+{
+    "startDate": "Start date",
+    "endDate": "End date",
+    "duration": "Duration",
+    "groupBy": "Group by",
+    "subgroupBy": "Then group by",
+    "color": "Color",
+    "comment": "Comment",
+    "content": "Content",
+    "editableColumns": "Editable columns",
+    "moment": "moment",
+    "moment_plural": "moments",
+    "cumulativeDuration": "Cumulative duration: ",
+    "timeRange": "Time range: ",
+    "hoursShort": "h",
+    "daysShort": "d"
+}

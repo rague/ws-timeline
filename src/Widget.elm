@@ -12,12 +12,15 @@ import Html.Attributes as HA
 import Html.Events
 import Html.Styled as Styled
 import Html.Styled.Attributes as SA
+import Http
+import I18Next
 import Iso8601
 import Json.Decode as Decode exposing (Decoder, Value)
 import Json.Decode.Extra as DecodeX
 import Json.Decode.Pipeline exposing (optional, required)
 import Json.Encode as Encode
 import List.Extra as ListX
+import Markdown
 import Moment
 import Phosphor exposing (IconWeight(..))
 import Platform.Cmd as Cmd
@@ -32,6 +35,8 @@ import Timeline
 import Timeline.Action
 import Timeline.Models exposing (Group, Interaction(..), selectionIsEmpty)
 import Timeline.Update
+import Widget.Language exposing (defaultLanguage)
+import Widget.Translations as T
 
 
 type Msg
@@ -52,6 +57,9 @@ type Msg
     | SelectMsg String (Select.Msg Field.ChoiceId)
     | CloseError Int
     | AddError String
+    | GotHelp (Result Http.Error String)
+    | GotTranslations (Result Http.Error I18Next.Translations)
+    | ShowHelp Bool
 
 
 type alias Model =
@@ -69,19 +77,40 @@ type alias Model =
     , records : Dict String Record
     , selectStates : Dict String Select.State
     , showInspector : Bool
+    , language : String
+    , translations : List I18Next.Translations
+    , help : String
+    , showHelp : Bool
     }
 
 
-main : Program () Model Msg
+main : Program Value Model Msg
 main =
     Browser.document
         { init =
-            \_ ->
+            \flags ->
+                let
+                    lang =
+                        languageFromFlags flags
+
+                    loadManCmd =
+                        Http.get
+                            { url = "/public/locales/" ++ String.slice 0 2 lang ++ "/help.md"
+                            , expect = Http.expectString GotHelp
+                            }
+
+                    loadTransCmd =
+                        Http.get
+                            { url = "/public/locales/" ++ String.slice 0 2 lang ++ "/translations.json"
+                            , expect = Http.expectJson GotTranslations I18Next.translationsDecoder
+                            }
+                in
                 ( { timelineState =
                         Timeline.init []
                             -- groupsData
                             |> Timeline.canEditGroups False
                             |> Timeline.canSortGroups False
+                            |> Timeline.setLanguage lang
                   , error = []
                   , errorId = 0
                   , box =
@@ -95,44 +124,20 @@ main =
                   , selectStates = Dict.empty
                   , focus = ""
                   , showInspector = False
+                  , language = lang
+                  , help = ""
+                  , showHelp = False
+                  , translations = [ defaultLanguage ]
                   }
                   -- , initialSizeCmd
-                , Task.perform (\size -> sizeToMsg (round size.viewport.width) (round size.viewport.height)) Browser.Dom.getViewport
+                , Cmd.batch
+                    [ Task.perform (\size -> sizeToMsg (round size.viewport.width) (round size.viewport.height)) Browser.Dom.getViewport
+                    , loadManCmd
+                    , loadTransCmd
+                    ]
                 )
         , update = update
-        , view =
-            \model ->
-                { title = "WeSchedule"
-                , body =
-                    [ Html.node "style" [] [ Html.text Timeline.styles ]
-                    , Html.node "style" [] [ Html.text styles ]
-                    , Timeline.view model.timelineState model.box
-                        |> Html.map TimelineMsg
-                    , if model.showInspector == False || Timeline.Models.selectionIsEmpty model.timelineState.selection then
-                        Html.text ""
-
-                      else
-                        inspectorView model
-                    , if List.isEmpty model.error then
-                        Html.text ""
-
-                      else
-                        Html.div [ HA.class "errors" ] <|
-                            List.map
-                                (\( iderr, err ) ->
-                                    Html.div [ HA.class "error" ]
-                                        [ Html.text err
-                                        , Html.button [ Html.Events.onClick (CloseError iderr) ]
-                                            [ Phosphor.x Regular
-                                                |> Phosphor.withSize 14
-                                                |> Phosphor.withSizeUnit "px"
-                                                |> Phosphor.toHtml [ HA.style "vertical-align" "sub" ]
-                                            ]
-                                        ]
-                                )
-                                model.error
-                    ]
-                }
+        , view = view
         , subscriptions =
             \model ->
                 Sub.batch
@@ -146,8 +151,79 @@ main =
         }
 
 
+view : Model -> { title : String, body : List (Html.Html Msg) }
+view model =
+    { title = "WeSchedule"
+    , body =
+        [ Html.node "style" [] [ Html.text Timeline.styles ]
+        , Html.node "style" [] [ Html.text styles ]
+        , Timeline.view model.timelineState model.box
+            |> Html.map TimelineMsg
+        , Html.div
+            [ HA.class "controls"
+            , HA.style "position" "absolute"
+            , HA.style "top" "5px"
+            ]
+            [ Html.button [ Html.Events.onClick (ShowHelp (not model.showHelp)) ]
+                [ Phosphor.questionMark Bold
+                    |> Phosphor.withSize 16
+                    |> Phosphor.withSizeUnit "px"
+                    |> Phosphor.toHtml [ HA.style "vertical-align" "sub" ]
+                ]
+            ]
+        , if model.showInspector == False || Timeline.Models.selectionIsEmpty model.timelineState.selection then
+            Html.text ""
+
+          else
+            inspectorView model
+        , if model.showHelp then
+            Html.div
+                [ HA.class "help"
+                , Html.Events.onClick (ShowHelp False)
+                ]
+            <|
+                [ Markdown.toHtml [] model.help ]
+
+          else
+            Html.text ""
+        , if List.isEmpty model.error then
+            Html.text ""
+
+          else
+            Html.div [ HA.class "errors" ] <|
+                List.map
+                    (\( iderr, err ) ->
+                        Html.div [ HA.class "error" ]
+                            [ Html.text err
+                            , Html.button [ Html.Events.onClick (CloseError iderr) ]
+                                [ Phosphor.x Regular
+                                    |> Phosphor.withSize 14
+                                    |> Phosphor.withSizeUnit "px"
+                                    |> Phosphor.toHtml [ HA.style "vertical-align" "sub" ]
+                                ]
+                            ]
+                    )
+                    model.error
+        ]
+    }
+
+
+languageFromFlags : Value -> String
+languageFromFlags flags =
+    let
+        result =
+            Decode.decodeValue (Decode.field "language" Decode.string) flags
+    in
+    case result of
+        Ok language ->
+            language
+
+        Err _ ->
+            "en"
+
+
 inspectorView : Model -> Html.Html Msg
-inspectorView model =
+inspectorView ({ translations } as model) =
     let
         selSize =
             Timeline.Models.selectionSize model.timelineState.selection
@@ -219,34 +295,33 @@ inspectorView model =
                         Html.text ""
     in
     [ (if selSize > 1 then
-        String.fromInt selSize ++ " tâches"
+        String.fromInt selSize ++ " " ++ T.momentPlural translations
 
        else
-        String.fromInt selSize ++ " tâche"
+        String.fromInt selSize ++ " " ++ T.moment translations
       )
         |> Html.text
         |> List.singleton
         |> Html.div []
-    , "Cumul Durées : "
+    , T.cumulativeDuration translations
+        ++ ((cumul * 10 / 24 |> round |> toFloat) / 10 |> String.fromFloat)
+        ++ " "
+        ++ T.daysShort translations
+        ++ " / "
         ++ (cumul |> String.fromFloat)
-        ++ (if cumul > 1 then
-                " heures"
-
-            else
-                "heure"
-           )
+        ++ " "
+        ++ T.hoursShort translations
         |> Html.text
         |> List.singleton
         |> Html.div []
-    , ("Amplitude : "
+    , T.timeRange translations
+        ++ String.fromFloat ((amplitude * 10 / 24 |> round |> toFloat) / 10)
+        ++ " "
+        ++ T.daysShort translations
+        ++ " / "
         ++ String.fromFloat amplitude
-        ++ (if amplitude > 1 then
-                " heures"
-
-            else
-                "heure"
-           )
-      )
+        ++ " "
+        ++ T.hoursShort translations
         |> Html.text
         |> List.singleton
         |> Html.div []
@@ -500,7 +575,7 @@ update msg model =
                         (Maybe.andThen
                             (\v ->
                                 Dict.singleton field v
-                                    |> fieldsFromSelection model.timelineState.zone model.timelineState.selection model.records
+                                    |> fieldsFromSelection model.timelineState.zone model.translations model.timelineState.selection model.records
                                     |> Dict.get field
                             )
                         )
@@ -568,6 +643,25 @@ update msg model =
 
         AddError str ->
             ( addError str model, Cmd.none )
+
+        GotHelp res ->
+            case res of
+                Ok str ->
+                    ( { model | help = str }, Cmd.none )
+
+                Err _ ->
+                    ( addError "Can't load help file : Http error" model, Cmd.none )
+
+        GotTranslations res ->
+            case res of
+                Ok trans ->
+                    ( { model | translations = trans :: model.translations }, Cmd.none )
+
+                Err _ ->
+                    ( addError "Can't load translation file : Http error" model, Cmd.none )
+
+        ShowHelp bool ->
+            ( { model | showHelp = bool }, Cmd.none )
 
 
 timelineUpdate : Timeline.Msg -> Model -> ( Model, Cmd Msg )
@@ -683,7 +777,7 @@ timelineUpdate tmsg model =
                         model.fields
 
                     else
-                        fieldsFromSelection model.timelineState.zone sel model.records model.fields
+                        fieldsFromSelection model.timelineState.zone model.translations sel model.records model.fields
 
                 _ ->
                     model.fields
@@ -765,7 +859,7 @@ receiveData data model =
                 , fields =
                     List.indexedMap (\pos field -> ( field.id, ( { field | position = pos }, Error NoSelection "" ) )) editable
                         |> Dict.fromList
-                        |> fieldsFromSelection model.timelineState.zone newtl.selection recs
+                        |> fieldsFromSelection model.timelineState.zone model.translations newtl.selection recs
                 , selectStates =
                     List.filterMap
                         (\field ->
@@ -873,8 +967,8 @@ makeFieldUpdate_ sel field value =
         |> updateField
 
 
-fieldsFromSelection : Time.Zone -> Timeline.Models.Selection -> Dict String Record -> Dict String ( Field, FieldState ) -> Dict String ( Field, FieldState )
-fieldsFromSelection zone selids allRecords fields =
+fieldsFromSelection : Time.Zone -> List I18Next.Translations -> Timeline.Models.Selection -> Dict String Record -> Dict String ( Field, FieldState ) -> Dict String ( Field, FieldState )
+fieldsFromSelection zone trans selids allRecords fields =
     let
         selSet =
             Timeline.Models.selectionToSet selids
@@ -951,15 +1045,15 @@ fieldsFromSelection zone selids allRecords fields =
                     ( field, Multi )
         )
         fields
-        |> Dict.insert debutFieldId ( debutField, debutVal )
+        |> Dict.insert debutFieldId ( debutField trans, debutVal )
         |> (case mbFinVal of
                 Just finVal ->
-                    Dict.insert finFieldId ( finField, finVal )
+                    Dict.insert finFieldId ( finField trans, finVal )
 
                 Nothing ->
                     Dict.remove finFieldId
            )
-        |> Dict.insert dureeFieldId ( dureeField, dureeVal )
+        |> Dict.insert dureeFieldId ( dureeField trans, dureeVal )
 
 
 wrapGroupeId : { g | groupeId : String, sousGroupeId : Maybe String } -> String
@@ -1112,9 +1206,9 @@ debutFieldId =
     "_timeline_Debut"
 
 
-debutField =
+debutField trans =
     { id = debutFieldId
-    , label = "Début"
+    , label = T.startDate trans
     , position = -10
     , ofType = Field.DateTime
     , values = Field.ListInt []
@@ -1125,9 +1219,9 @@ finFieldId =
     "_timeline_Fin"
 
 
-finField =
+finField trans =
     { id = finFieldId
-    , label = "Fin"
+    , label = T.endDate trans
     , position = -10
     , ofType = Field.DateTime
     , values = Field.ListInt []
@@ -1138,9 +1232,9 @@ dureeFieldId =
     "_timeline_Duree"
 
 
-dureeField =
+dureeField trans =
     { id = dureeFieldId
-    , label = "Durée"
+    , label = T.duration trans
     , position = -5
     , ofType = Field.Float Field.Standard False 0 2
     , values = Field.ListFloat []
@@ -1295,6 +1389,33 @@ body {
 
 }
 
+
+.help {
+    position: absolute;
+    top: 10px;
+    background-color: white;
+    width: 80%;
+    max-height: 90%;
+    padding: 10px 30px;
+    left: 40px;
+    font-family: sans-serif;
+    font-size: 14px;
+    box-shadow: 0px 10px 24px 0px rgba(0,0,0,0.34);
+
+    h1 {
+        font-size: 20px;
+    }
+
+    h2 {
+        font-size: 16px;
+    }
+}
+
+.help div {
+    height: 100%;
+    overflow: auto;
+}
+
 .errors {
     position: absolute;
     bottom: 0;
@@ -1318,6 +1439,20 @@ body {
     font-size: 10px;
     background: none;
     color: white;
+}
+
+.controls  button {
+    margin-left: 6px;
+    border: none;
+    font-size: 10px;
+    background-color: #DDD;
+    border-radius: 50px;
+    padding: 5px;
+    cursor: pointer;
+
+    &:hover {
+        background-color: #B4CCE1;
+    }
 }
 """
 

@@ -1,0 +1,1 @@
+npx @abradley2/elm-i18next-gen --output=src/Widget/ --translations=public/locales/en/translations.json

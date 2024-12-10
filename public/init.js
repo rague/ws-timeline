@@ -1,13 +1,50 @@
 const secondsPerDay = 24 * 60 * 60;
 
-// const params = new URLSearchParams(document.location.search);
-// const paramEndDate = params.get("mode") == "fin";
-
 let _mappings;
 let app;
 let setRecordsArgs;
+const t = i18next.t;
 
-window.addEventListener('load', (event) => {
+
+function getLanguage() {
+  if (this._lang) {
+    return this._lang;
+  } else {
+    const queryString = window.location.search;
+    const urlParams = new URLSearchParams(queryString);
+    // this._lang = (urlParams.get('language') ?? navigator.language ?? 'en');
+    this._lang = navigator.language;
+    console.log("getLanguage() =>", this._lang);
+    return this._lang;
+  }
+}
+
+
+
+async function translatePage() {
+
+  const backendOptions = {
+
+    loadPath: '/public/locales/{{lng}}/translations.json',
+    // don't allow cross domain requests
+    crossDomain: false,
+    // don't include credentials on cross domain requests
+    withCredentials: false,
+    // overrideMimeType sets request.overrideMimeType("application/json")
+    overrideMimeType: false,
+  }
+  await i18next.use(i18nextHttpBackend).init({
+    lng: getLanguage(),
+    debug: false,
+    saveMissing: false,
+    returnNull: false,
+    backend: backendOptions,
+  }
+  );
+}
+
+
+window.addEventListener('load', async (event) => {
   console.log('La page est complètement chargée');
 
   let mappedRecords = [];
@@ -15,21 +52,15 @@ window.addEventListener('load', (event) => {
   let options = undefined;
   let rawtable;
 
+  await translatePage();
 
-
-
-
-
-
-  // const seedFlag = [randInts[0], randInts.slice(1)]
-  app = Elm.Widget.init();
-
+  app = Elm.Widget.init({ flags: { language: getLanguage() } });
 
   app.ports.updateOptions.subscribe(opts => {
     options = opts;
 
     grist.setOptions(opts);
-  })
+  });
 
 
   app.ports.modifyRecords.subscribe(async change => {
@@ -393,7 +424,7 @@ window.addEventListener('load', (event) => {
     columns: [
       {
         name: "date", // What field we will read.
-        title: "Date et heure", // Friendly field name.
+        title: t("startDate"), // Friendly field name.
         optional: false, // Is this an optional field.
         type: "DateTime", // What type of column we expect.
         //   description: "D", // Description of a field.
@@ -403,7 +434,7 @@ window.addEventListener('load', (event) => {
       paramEndDate ?
         {
           name: "fin",
-          title: "Fin",
+          title: t("endDate"),
           optional: false,
           type: "DateTime",
           //   description: "D",
@@ -413,7 +444,7 @@ window.addEventListener('load', (event) => {
         :
         {
           name: "duree",
-          title: "Durée",
+          title: t("duration"),
           optional: false,
           type: "Numeric, Int",
           //   description: "D",
@@ -422,7 +453,7 @@ window.addEventListener('load', (event) => {
         },
       {
         name: "groupe",
-        title: "Grouper par",
+        title: t("groupBy"),
         optional: false,
         type: "Any",
         //   description: "D",
@@ -430,7 +461,7 @@ window.addEventListener('load', (event) => {
       },
       {
         name: "sousGroupe",
-        title: "Puis grouper par",
+        title: t("subgroupBy"),
         optional: true,
         type: "Any",
         //   description: "D",
@@ -439,7 +470,7 @@ window.addEventListener('load', (event) => {
 
       {
         name: "couleur",
-        title: "Couleur",
+        title: t("color"),
         optional: true,
         type: "Choice",
 
@@ -447,7 +478,7 @@ window.addEventListener('load', (event) => {
 
       {
         name: "commentaire",
-        title: "Commentaire",
+        title: t("comment"),
         optional: true,
         type: "Any",
 
@@ -455,7 +486,7 @@ window.addEventListener('load', (event) => {
 
       {
         name: "contenu",
-        title: "Contenu",
+        title: t("content"),
         optional: true,
         type: "Any",
         // type: "Text, Int, Numeric",
@@ -466,7 +497,7 @@ window.addEventListener('load', (event) => {
 
       {
         name: "fields",
-        title: "Champs éditables",
+        title: t("editableColumns"),
         optional: true,
         type: "Any",
         // type: "Text, Int, Numeric",

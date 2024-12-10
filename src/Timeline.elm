@@ -1,7 +1,8 @@
-module Timeline exposing (Msg(..), applyAction, calcLayersSize, canEditGroups, canSortGroups, changeLineSize, changeStartAndZoom, changeYOffset, default, init, periodIsEqual, reinit, sectionsView, styles, subscriptions, update, view, zoomAllTime)
+module Timeline exposing (Msg(..), applyAction, calcLayersSize, canEditGroups, canSortGroups, changeLineSize, changeStartAndZoom, changeYOffset, default, init, periodIsEqual, reinit, sectionsView, setLanguage, styles, subscriptions, update, view, zoomAllTime)
 
 import Browser.Dom
 import Browser.Events
+import Cldr.Locale exposing (Locale)
 import Color
 import Dict exposing (Dict)
 import DnDList
@@ -157,11 +158,11 @@ default =
     , interaction = MouseOver ( Time.millisToPosix -1, -1 )
     , standby = False
     , dnd = (system dir).model
+    , locale = Cldr.Locale.en
     , zone = TimeZone.europe__paris ()
     , canSortGroups = True
     , canEditGroups = True
     , currentPosix = Time.millisToPosix 0
-    , showHelp = False
     }
 
 
@@ -488,6 +489,11 @@ canEditGroups b tl =
     { tl | canEditGroups = b }
 
 
+setLanguage : String -> TimelineBox -> TimelineBox
+setLanguage str tl =
+    { tl | locale = Cldr.Locale.fromString Cldr.Locale.basicLocales str |> Maybe.withDefault Cldr.Locale.en }
+
+
 axisHeight : number
 axisHeight =
     50
@@ -571,182 +577,141 @@ view box rect =
         , Html.Events.on "keyup" (Decode.map Keypress Html.Events.keyCode)
         , mouseUpEvent SectionsUp
         ]
-        ([ Html.button [ Html.Events.onClick SectionsDoubleClick ] [ Html.text "Tout voir" ]
-         , Html.button [ Html.Events.onClick (ShowHelp (not box.showHelp)) ] [ Html.text "Help !" ]
-         ]
-            ++ (if box.showHelp then
-                    [ Html.div [HA.style "font-size" "0.8em"]
-                        [ Html.h3 [] [ Html.text "Aide" ]
-                        , Html.h5 [] [ Html.text "Selection" ]
-                        , List.map (Html.text >> List.singleton >> Html.li [])
-                            [ "Shift + Click sur tâches existantes : multi-sélection"
-                            , "Click & drag : lasso de multi-sélection"
-                            , "Shift + click & drag : ajout à la multi-sélection en cours"
-                            , "Click sur nom de ligne : selection de toute la ligne"
-                            ]
-                            |> Html.ul []
-                        , Html.h5 [] [ Html.text "Défilement et zoom" ]
-                        , List.map (Html.text >> List.singleton >> Html.li [])
-                            [ "Molette (souris) | 2 doigts horizontal (Trackpad): défilement vertical"
-                            , "Shift + Molette (souris) | 2 doigts vertical (Trackpad) : défilement horizontal"
-                            , "Alt + Molette | Alt + 2 doigts : zoom horizontal"
-                            , "Alt + Molette | Alt + 2 doigts - dans la colonne de gauche : zoom vertical"
-                            , "z (sans selection) : zoom horizontal pour afficher toutes les tâches"
-                            , "z (avec selection) : zoom horizontal sur les tâches sélectionnées"
-                            , "n : défiler vers la date et l'heure courante"
-                            ]
-                            |> Html.ul []
-                        , Html.h5 [] [ Html.text "Création / modification" ]
-                        , List.map (Html.text >> List.singleton >> Html.li [])
-                            [ "Alt + Click & drag : création de tâche"
-                            , "Alt + Click & drag sur une tâche existante : dupliquer une tâche à une autre date"
-                            , "d : dupliquer les tâches sélectionnées"
-                            , "t : couper les tâches sélectionnées à l'endroit du curseur bleu"
-                            ]
-                            |> Html.ul []
-                        , Html.button [ Html.Events.onClick (ShowHelp False) ] [ Html.text "Ok" ]
-                        ]
-                        
-                    ]
+        [ Html.div
+            (if box.direction == Horizontal then
+                [ HA.style "position" "absolute"
+                , HA.style "height" (String.fromInt (rect.height - axisHeight) ++ "px")
+                , HA.style "width" (String.fromInt lateral {- rect.width -} ++ "px")
+                , HA.style "top" (String.fromInt axisHeight ++ "px")
+                , HA.style "overflow" "hidden"
+                ]
 
-                else
-                    [ Html.div
-                        (if box.direction == Horizontal then
-                            [ HA.style "position" "absolute"
-                            , HA.style "height" (String.fromInt (rect.height - axisHeight) ++ "px")
-                            , HA.style "width" (String.fromInt lateral {- rect.width -} ++ "px")
-                            , HA.style "top" (String.fromInt axisHeight ++ "px")
-                            , HA.style "overflow" "hidden"
-                            ]
+             else
+                [ HA.style "position" "absolute"
+                , HA.style "height" (String.fromInt {- rect.height -} top ++ "px")
+                , HA.style "width" (String.fromInt (rect.width - axisWidth) ++ "px")
+                , HA.style "left" (String.fromInt axisWidth ++ "px")
+                , HA.style "overflow" "hidden"
+                ]
+            )
+            [ if box.direction == Horizontal then
+                Html.Lazy.lazy4 drawGroups
+                    box
+                    lateral
+                    lateral
+                    rect.height
 
-                         else
-                            [ HA.style "position" "absolute"
-                            , HA.style "height" (String.fromInt {- rect.height -} top ++ "px")
-                            , HA.style "width" (String.fromInt (rect.width - axisWidth) ++ "px")
-                            , HA.style "left" (String.fromInt axisWidth ++ "px")
-                            , HA.style "overflow" "hidden"
-                            ]
+              else
+                Html.Lazy.lazy4 drawGroups
+                    box
+                    top
+                    rect.width
+                    top
+            ]
+        , if box.direction == Horizontal then
+            Html.div
+                [ HA.style "position" "absolute"
+                , HA.style "overflow" "hidden"
+                , HA.style "left" (String.fromInt lateral ++ "px")
+                , HA.style "top" (String.fromInt (top + axisHeight) ++ "px")
+                , HA.style "width" <| String.fromInt width ++ "px"
+                , HA.style "height" <| String.fromInt (height - axisHeight) ++ "px"
+                ]
+                [ Html.div
+                    [ HA.style "position" "absolute"
+                    , HA.style "overflow" "hidden"
+                    , HA.style "left" "0px"
+                    , HA.style "width" <|
+                        String.fromInt width
+                            ++ "px"
+                    , HA.style "top" <|
+                        (String.fromFloat
+                            box.sectionOffsetY
+                            ++ "px"
                         )
-                        [ if box.direction == Horizontal then
-                            Html.Lazy.lazy4 drawGroups
-                                box
-                                lateral
-                                lateral
-                                rect.height
-
-                          else
-                            Html.Lazy.lazy4 drawGroups
-                                box
-                                top
-                                rect.width
-                                top
-                        ]
-                    , if box.direction == Horizontal then
-                        Html.div
-                            [ HA.style "position" "absolute"
-                            , HA.style "overflow" "hidden"
-                            , HA.style "left" (String.fromInt lateral ++ "px")
-                            , HA.style "top" (String.fromInt (top + axisHeight) ++ "px")
-                            , HA.style "width" <| String.fromInt width ++ "px"
-                            , HA.style "height" <| String.fromInt (height - axisHeight) ++ "px"
-                            ]
-                            [ Html.div
-                                [ HA.style "position" "absolute"
-                                , HA.style "overflow" "hidden"
-                                , HA.style "left" "0px"
-                                , HA.style "width" <|
-                                    String.fromInt width
-                                        ++ "px"
-                                , HA.style "top" <|
-                                    (String.fromFloat
-                                        box.sectionOffsetY
-                                        ++ "px"
-                                    )
-                                ]
-                                [ Html.Lazy.lazy2 drawRowsBackground box.groups box.lineSize ]
-                            ]
-
-                      else
-                        Html.div
-                            [ HA.style "position" "absolute"
-                            , HA.style "overflow" "hidden"
-                            , HA.style "left" (String.fromInt (lateral + axisWidth) ++ "px")
-                            , HA.style "top" (String.fromInt top ++ "px")
-                            , HA.style "width" <| String.fromInt width ++ "px"
-                            , HA.style "height" <| String.fromInt height ++ "px"
-                            ]
-                            []
-                    , case ( box.interaction, mbcursor, box.standby ) of
-                        ( MouseOver _, Just pos, False ) ->
-                            Html.div
-                                [ HA.style "position" "absolute"
-                                , HA.style "left" (String.fromInt (pos + lateral) ++ "px")
-                                , HA.style "top" (String.fromInt (top + 5) ++ "px")
-                                , HA.style "width" "0"
-                                , HA.style "height" (String.fromInt height ++ "px")
-                                , HA.style "border-left" "1px solid rgba(100,0,255,0.5)"
-                                , HA.style "z-index" "1"
-                                , HA.style "pointer-events" "none"
-                                ]
-                                []
-
-                        _ ->
-                            Svg.g [] []
-                    , Html.div
-                        [ HA.style "position" "absolute"
-                        , HA.style "left" (String.fromInt lateral ++ "px")
-                        , HA.style "top" (String.fromInt top ++ "px")
-                        , HA.style "width" <| String.fromInt width ++ "px"
-                        , HA.style "height" <| String.fromInt height ++ "px"
-
-                        -- , HA.style "z-index" "1"
-                        ]
-                        [ if box.direction == Horizontal then
-                            Html.Lazy.lazy6 Axis.hview [ wheelEvent SectionsWheel, moveY0Event SectionsMove ] box.zone width height from end
-
-                          else
-                            Html.Lazy.lazy6 Axis.vview [ wheelEvent SectionsWheel, moveY0Event SectionsMove ] box.zone width height from end
-                        ]
-                    , if box.direction == Horizontal then
-                        Html.div
-                            [ HA.style "position" "absolute"
-                            , HA.style "overflow" "hidden"
-                            , HA.style "left" (String.fromInt lateral ++ "px")
-                            , HA.style "top" (String.fromInt (top + axisHeight) ++ "px")
-                            , HA.style "width" <| String.fromInt width ++ "px"
-                            , HA.style "height" <| String.fromInt (height - axisHeight) ++ "px"
-                            ]
-                            [ sectionsView box box.sections width (height - axisHeight) from end ]
-
-                      else
-                        Html.div
-                            [ HA.style "position" "absolute"
-                            , HA.style "overflow" "hidden"
-                            , HA.style "left" (String.fromInt (lateral + axisWidth) ++ "px")
-                            , HA.style "top" (String.fromInt top ++ "px")
-                            , HA.style "width" <| String.fromInt width ++ "px"
-                            , HA.style "height" <| String.fromInt height ++ "px"
-                            ]
-                            [ sectionsView box box.sections (width - axisWidth) height from end ]
-                    , if Moment.between box.currentPosix (Time.millisToPosix (round from)) (Time.millisToPosix (round end)) then
-                        Html.div
-                            [ HA.style "position" "absolute"
-                            , HA.style "left" (String.fromInt (currentTime + lateral) ++ "px")
-                            , HA.style "top" (String.fromInt (top + 5) ++ "px")
-                            , HA.style "width" "0"
-                            , HA.style "height" (String.fromInt height ++ "px")
-                            , HA.style "border-left" "2px solid rgba(255,100,0,0.7)"
-
-                            -- , HA.style "z-index" "1"
-                            , HA.style "pointer-events" "none"
-                            ]
-                            []
-
-                      else
-                        Svg.g [] []
                     ]
-               )
-        )
+                    [ Html.Lazy.lazy2 drawRowsBackground box.groups box.lineSize ]
+                ]
+
+          else
+            Html.div
+                [ HA.style "position" "absolute"
+                , HA.style "overflow" "hidden"
+                , HA.style "left" (String.fromInt (lateral + axisWidth) ++ "px")
+                , HA.style "top" (String.fromInt top ++ "px")
+                , HA.style "width" <| String.fromInt width ++ "px"
+                , HA.style "height" <| String.fromInt height ++ "px"
+                ]
+                []
+        , case ( box.interaction, mbcursor, box.standby ) of
+            ( MouseOver _, Just pos, False ) ->
+                Html.div
+                    [ HA.style "position" "absolute"
+                    , HA.style "left" (String.fromInt (pos + lateral) ++ "px")
+                    , HA.style "top" (String.fromInt (top + 5) ++ "px")
+                    , HA.style "width" "0"
+                    , HA.style "height" (String.fromInt height ++ "px")
+                    , HA.style "border-left" "1px solid rgba(100,0,255,0.5)"
+                    , HA.style "z-index" "1"
+                    , HA.style "pointer-events" "none"
+                    ]
+                    []
+
+            _ ->
+                Svg.g [] []
+        , Html.div
+            [ HA.style "position" "absolute"
+            , HA.style "left" (String.fromInt lateral ++ "px")
+            , HA.style "top" (String.fromInt top ++ "px")
+            , HA.style "width" <| String.fromInt width ++ "px"
+            , HA.style "height" <| String.fromInt height ++ "px"
+
+            -- , HA.style "z-index" "1"
+            ]
+            [ if box.direction == Horizontal then
+                Html.Lazy.lazy7 Axis.hview [ wheelEvent SectionsWheel, moveY0Event SectionsMove ] box.locale box.zone width height from end
+
+              else
+                Html.Lazy.lazy7 Axis.vview [ wheelEvent SectionsWheel, moveY0Event SectionsMove ] box.locale box.zone width height from end
+            ]
+        , if box.direction == Horizontal then
+            Html.div
+                [ HA.style "position" "absolute"
+                , HA.style "overflow" "hidden"
+                , HA.style "left" (String.fromInt lateral ++ "px")
+                , HA.style "top" (String.fromInt (top + axisHeight) ++ "px")
+                , HA.style "width" <| String.fromInt width ++ "px"
+                , HA.style "height" <| String.fromInt (height - axisHeight) ++ "px"
+                ]
+                [ sectionsView box box.sections width (height - axisHeight) from end ]
+
+          else
+            Html.div
+                [ HA.style "position" "absolute"
+                , HA.style "overflow" "hidden"
+                , HA.style "left" (String.fromInt (lateral + axisWidth) ++ "px")
+                , HA.style "top" (String.fromInt top ++ "px")
+                , HA.style "width" <| String.fromInt width ++ "px"
+                , HA.style "height" <| String.fromInt height ++ "px"
+                ]
+                [ sectionsView box box.sections (width - axisWidth) height from end ]
+        , if Moment.between box.currentPosix (Time.millisToPosix (round from)) (Time.millisToPosix (round end)) then
+            Html.div
+                [ HA.style "position" "absolute"
+                , HA.style "left" (String.fromInt (currentTime + lateral) ++ "px")
+                , HA.style "top" (String.fromInt (top + 5) ++ "px")
+                , HA.style "width" "0"
+                , HA.style "height" (String.fromInt height ++ "px")
+                , HA.style "border-left" "2px solid rgba(255,100,0,0.7)"
+
+                -- , HA.style "z-index" "1"
+                , HA.style "pointer-events" "none"
+                ]
+                []
+
+          else
+            Svg.g [] []
+        ]
 
 
 drawRowsBackground : Dict GroupId GroupBox -> Float -> Html Msg
@@ -787,7 +752,6 @@ type Msg
     | CancelGroupLabelEdit
     | Keypress Int
     | UpdateTime Time.Posix
-    | ShowHelp Bool
 
 
 drawGroups : TimelineBox -> Int -> Int -> Int -> Html Msg
@@ -1450,7 +1414,9 @@ sectionsView ({ direction } as box) sections width height fromTime endTime =
             , HA.style "top" "0"
             , HA.style "position" "absolute"
             ]
-            [ drawHtmlSections direction
+            [ drawHtmlSections
+                direction
+                box.locale
                 box.zone
                 width
                 height
@@ -1492,7 +1458,9 @@ sectionsView ({ direction } as box) sections width height fromTime endTime =
             , HA.style "top" "0"
             , HA.style "position" "absolute"
             ]
-            [ drawHtmlSections direction
+            [ drawHtmlSections
+                direction
+                box.locale
                 box.zone
                 width
                 height
@@ -1523,6 +1491,7 @@ sectionsView ({ direction } as box) sections width height fromTime endTime =
 
 drawHtmlSections :
     Direction
+    -> Locale
     -> Time.Zone
     -> Int
     -> Int
@@ -1532,7 +1501,7 @@ drawHtmlSections :
     -> Maybe ( ( Float, Float ), ( Float, Float ) )
     -> Maybe (List { b | section : Maybe Section, left : Float, top : Float, w : Float, h : Float, start : Posix, end : Posix })
     -> Html Msg
-drawHtmlSections direction zone _ _ scrollX scrollY allSections mbselection mbdraw =
+drawHtmlSections direction locale zone _ _ scrollX scrollY allSections mbselection mbdraw =
     Html.div
         [ HA.style "position" "absolute"
         , HA.style "left" ((String.fromFloat <| scrollX) ++ "px")
@@ -1544,7 +1513,7 @@ drawHtmlSections direction zone _ _ scrollX scrollY allSections mbselection mbdr
                 (\({ section } as sbox) ->
                     ( sbox.section.id
                     , Html.Lazy.lazy8 sectionBox2html
-                        zone
+                        ( locale, zone )
                         direction
                         sbox.left
                         sbox.top
@@ -1573,7 +1542,7 @@ drawHtmlSections direction zone _ _ scrollX scrollY allSections mbselection mbdr
                 drawList
                     |> List.map
                         (\draw ->
-                            sectionBox2html zone
+                            sectionBox2html ( locale, zone )
                                 direction
                                 draw.left
                                 draw.top
@@ -1602,7 +1571,7 @@ drawHtmlSections direction zone _ _ scrollX scrollY allSections mbselection mbdr
 
 
 sectionBox2html :
-    Time.Zone
+    ( Locale, Time.Zone )
     -> Direction
     -> Float
     -> Float
@@ -1617,7 +1586,7 @@ sectionBox2html :
             , labels : List String
         }
     -> Html msg
-sectionBox2html zone direction positionh positionv sizeh sizev isSelected { color, labels, start, end } =
+sectionBox2html ( locale, zone ) direction positionh positionv sizeh sizev isSelected { color, labels, start, end } =
     let
         posx =
             positionh
@@ -1683,7 +1652,7 @@ sectionBox2html zone direction positionh positionv sizeh sizev isSelected { colo
                             [ Html.div
                                 [ HA.style "padding-left" "2px"
                                 ]
-                                [ Html.text (Moment.format zone Moment.Hour Nothing start) ]
+                                [ Html.text (Moment.format locale zone Moment.Hour Nothing start) ]
                             , if hideTime then
                                 Html.text ""
 
@@ -1698,7 +1667,7 @@ sectionBox2html zone direction positionh positionv sizeh sizev isSelected { colo
                                         , HA.style "top" ((String.fromInt <| round <| (sizev - 12)) ++ "px")
                                         ]
                                     )
-                                    [ Html.text <| Moment.format zone Moment.Hour Nothing end ]
+                                    [ Html.text <| Moment.format locale zone Moment.Hour Nothing end ]
                             ]
                 , Just <|
                     Html.div
@@ -2179,8 +2148,8 @@ update msg bb rect =
                         |> updateSelection emptySelection
                         |> selectAction
 
-                84 ->
-                    -- "t"
+                83 ->
+                    -- "s"
                     case box.interaction of
                         MouseOver ( time, _ ) ->
                             ( box, Split box.selection (snapToGridForZoom box.zoom box.zone time), Cmd.none )
@@ -2213,8 +2182,11 @@ update msg bb rect =
         UpdateTime posix ->
             noAction { box | currentPosix = posix }
 
-        ShowHelp bool ->
-            noAction { box | showHelp = bool }
+
+
+{-
+   CSS functions
+-}
 
 
 sister : String -> List (String -> ( String, String )) -> String -> ( String, String )

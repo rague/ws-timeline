@@ -1,16 +1,11 @@
-module Moment exposing (Duration, Moment(..), add, addDuration, addDurationToPosix, between, changeHour, durationBetween, durationIsZero, durationNotZero, format, fromDuration, greaterThan, intersect, lessOrEqualThan, lessThan, mapDuration, maxPosix, minPosix, startOf, subtractDuration, toDuration, toHoursString)
+module Moment exposing (Duration, Moment(..), add, addDuration, addDurationToPosix, between, durationBetween, durationIsZero, durationNotZero, format, fromDuration, greaterThan, intersect, lessOrEqualThan, lessThan, mapDuration, maxPosix, minPosix, startOf, subtractDuration, toDuration)
 
---
--- import Date exposing (Date, Day(..))
--- import Date.Extra.Config.Config_fr_fr exposing (config)
--- import Date.Extra.Core as Coredire
--- import Date.Extra.Create as Create
--- import Date.Extra.Field as F
--- import Date.Extra.Format as Format
--- import Date.Extra.Period as Period
--- import Date.Extra.TimeUnit as TU
--- import Date.Extra.Utils as Utils
-
+import Cldr.Format.Date as FDate
+import Cldr.Format.DateTime as FDateTime
+import Cldr.Format.Length as FLength
+import Cldr.Format.Options as O
+import Cldr.Format.OptionsBuilder as B
+import Cldr.Locale exposing (Locale)
 import Date
 import Html.Attributes exposing (start)
 import Time exposing (Month(..), Posix, Weekday(..), Zone)
@@ -113,34 +108,6 @@ addDurationToPosix posix (Duration dur) =
 subtractDuration : Posix -> Duration -> Posix
 subtractDuration posix (Duration dur) =
     Time.posixToMillis posix - dur |> Time.millisToPosix
-
-
-toHoursString : Duration -> String
-toHoursString (Duration dur) =
-    let
-        hours =
-            dur // 3600000
-
-        minutes =
-            (dur - (hours * 3600000)) // 60000
-
-        seconds =
-            (hours - (minutes * 60000)) // 1000
-    in
-    String.fromInt hours
-        ++ "h "
-        ++ (if minutes > 0 || seconds > 0 then
-                String.fromInt minutes ++ "mn "
-
-            else
-                ""
-           )
-        ++ (if seconds > 0 then
-                String.fromInt seconds ++ "s"
-
-            else
-                ""
-           )
 
 
 fr : Date.Language
@@ -332,15 +299,6 @@ startOf unit zone delta date =
 -- TE.floor TE.Minute zone date
 
 
-changeHour : Int -> Zone -> Posix -> Posix
-changeHour hour zone date =
-    let
-        parts =
-            TE.posixToParts zone date
-    in
-    TE.partsToPosix zone { parts | hour = hour }
-
-
 add : Moment -> Int -> Zone -> Posix -> Posix
 add unit plus zone date =
     case unit of
@@ -363,22 +321,24 @@ add unit plus zone date =
             TE.add TE.Minute plus zone date
 
 
-format : Zone -> Moment -> Maybe String -> Posix -> String
-format zone unit mbformat posix =
+format : Locale -> Zone -> Moment -> Maybe String -> Posix -> String
+format locale zone unit mbformat posix =
     if mbformat == Just "" then
         ""
 
     else
         case unit of
             Year ->
-                Date.formatWithLanguage fr (Maybe.withDefault "y" mbformat) (Date.fromPosix zone posix)
+                formatI18n locale zone (Maybe.withDefault "yyyy" mbformat) posix
 
+            -- Date.formatWithLanguage fr (Maybe.withDefault "y" mbformat) (Date.fromPosix zone posix)
             Month ->
-                Date.formatWithLanguage fr (Maybe.withDefault "MMM" mbformat) (Date.fromPosix zone posix)
+                formatI18n locale zone (Maybe.withDefault "MMMM" mbformat) posix
 
+            -- Date.formatWithLanguage fr (Maybe.withDefault "MMM" mbformat) (Date.fromPosix zone posix)
             Week ->
                 (if mbformat == Nothing then
-                    "s"
+                    "w"
 
                  else
                     ""
@@ -386,21 +346,225 @@ format zone unit mbformat posix =
                     ++ Date.formatWithLanguage fr (Maybe.withDefault "ww" mbformat) (Date.fromPosix zone posix)
 
             Day ->
-                Date.formatWithLanguage fr (Maybe.withDefault "EEE dd" mbformat) (Date.fromPosix zone posix)
+                formatI18n locale zone (Maybe.withDefault "ddd dd" mbformat) posix
 
+            -- Date.formatWithLanguage fr (Maybe.withDefault "EEE dd" mbformat) (Date.fromPosix zone posix)
             Hour ->
-                let
-                    minutes =
-                        Time.toMinute zone posix
-                in
-                (Time.toHour zone posix |> String.fromInt)
-                    ++ "h"
-                    ++ (if minutes > 0 then
-                            minutes |> String.fromInt |> String.padLeft 2 '0'
+                FDateTime.format
+                    (FDateTime.TimeOnly FLength.Short)
+                    -- (FDateTime.WithOptions (B.initDateTime |> B.setHour O.TwoDigit |> B.toOptions))
+                    locale
+                    zone
+                    posix
+                    |> String.replace ":00" ""
 
-                        else
-                            ""
-                       )
-
+            -- let
+            --     minutes =
+            --         Time.toMinute zone posix
+            -- in
+            -- (Time.toHour zone posix |> String.fromInt)
+            --     ++ "h"
+            --     ++ (if minutes > 0 then
+            --             minutes |> String.fromInt |> String.padLeft 2 '0'
+            --         else
+            --             ""
+            --        )
             Minute ->
                 Time.toMinute zone posix |> String.fromInt |> String.padLeft 2 '0'
+
+
+formatI18n : Locale -> Zone -> String -> Posix -> String
+formatI18n lang zone fmt time =
+    fmt
+        |> String.split ""
+        |> group
+        |> List.map String.concat
+        |> List.map (formatPart lang zone time)
+        |> String.concat
+
+
+stringPadLeft20 i =
+    i
+        |> String.fromInt
+        |> String.padLeft 2 '0'
+
+
+stringTake n i =
+    i
+        |> String.fromInt
+        |> String.split ""
+        |> List.take n
+        |> String.concat
+
+
+to12hour n =
+    if n == 12 then
+        12
+
+    else
+        modBy 12 n
+
+
+formatPart : Locale -> Zone -> Posix -> String -> String
+formatPart locale zone time part =
+    case part of
+        "d" ->
+            Time.toDay zone time
+                |> String.fromInt
+
+        "dd" ->
+            Time.toDay zone time
+                |> stringPadLeft20
+
+        "ddd" ->
+            FDate.format
+                (FDate.WithOptions (B.initDate |> B.setWeekday O.Short |> B.toOptions))
+                locale
+                (Date.fromPosix zone time)
+
+        "dddd" ->
+            FDate.format
+                (FDate.WithOptions (B.initDate |> B.setWeekday O.Long |> B.toOptions))
+                locale
+                (Date.fromPosix zone time)
+
+        "h" ->
+            Time.toHour zone time
+                |> to12hour
+                |> String.fromInt
+
+        "hh" ->
+            Time.toHour zone time
+                |> to12hour
+                |> stringPadLeft20
+
+        "H" ->
+            Time.toHour zone time
+                |> String.fromInt
+
+        "HH" ->
+            Time.toHour zone time
+                |> stringPadLeft20
+
+        "m" ->
+            Time.toMinute zone time
+                |> String.fromInt
+
+        "mm" ->
+            Time.toMinute zone time
+                |> stringPadLeft20
+
+        "M" ->
+            FDate.format
+                (FDate.WithOptions (B.initDate |> B.setMonthNumber O.Numeric |> B.toOptions))
+                locale
+                (Date.fromPosix zone time)
+
+        "MM" ->
+            FDate.format
+                (FDate.WithOptions (B.initDate |> B.setMonthNumber O.TwoDigit |> B.toOptions))
+                locale
+                (Date.fromPosix zone time)
+
+        "MMM" ->
+            FDate.format
+                (FDate.WithOptions (B.initDate |> B.setMonthText O.Short |> B.toOptions))
+                locale
+                (Date.fromPosix zone time)
+
+        "MMMM" ->
+            FDate.format
+                (FDate.WithOptions (B.initDate |> B.setMonthText O.Long |> B.toOptions))
+                locale
+                (Date.fromPosix zone time)
+
+        "s" ->
+            Time.toSecond zone time
+                |> String.fromInt
+
+        "ss" ->
+            Time.toSecond zone time
+                |> stringPadLeft20
+
+        "t" ->
+            if Time.toHour zone time < 12 then
+                "A"
+
+            else
+                "P"
+
+        "tt" ->
+            if Time.toHour zone time < 12 then
+                "AM"
+
+            else
+                "PM"
+
+        "yy" ->
+            Time.toYear zone time
+                |> modBy 100
+                |> stringPadLeft20
+
+        "yyyy" ->
+            Time.toYear zone time
+                |> String.fromInt
+
+        "f" ->
+            Time.toMillis zone time
+                |> stringTake 1
+
+        "ff" ->
+            Time.toMillis zone time
+                |> stringTake 2
+
+        "fff" ->
+            Time.toMillis zone time
+                |> stringTake 3
+
+        "xx" ->
+            FDate.format
+                (FDate.WithOptions
+                    (B.initDate
+                        |> B.setWeekday O.Short
+                        |> B.setDay O.Numeric
+                        |> B.setMonthText O.Short
+                        |> B.setYear O.Numeric
+                        |> B.toOptions
+                    )
+                )
+                locale
+                (Date.fromPosix zone time)
+
+        a ->
+            a
+
+
+
+-- LIST
+
+
+group : List a -> List (List a)
+group =
+    group_ []
+
+
+group_ : List (List a) -> List a -> List (List a)
+group_ acc fmt =
+    case fmt of
+        [] ->
+            List.reverse acc
+
+        a :: bs ->
+            case acc of
+                [] ->
+                    group_ [ [ a ] ] bs
+
+                (y :: ys) :: xs ->
+                    if a == y then
+                        group_ ((a :: y :: ys) :: xs) bs
+
+                    else
+                        group_ ([ a ] :: (y :: ys) :: xs) bs
+
+                [] :: _ ->
+                    acc
