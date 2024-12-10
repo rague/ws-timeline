@@ -20,12 +20,11 @@ function getLanguage() {
 }
 
 
-
 async function translatePage() {
 
   const backendOptions = {
 
-    loadPath: '/public/locales/{{lng}}/translations.json',
+    loadPath: '../public/locales/{{lng}}/translations.json',
     // don't allow cross domain requests
     crossDomain: false,
     // don't include credentials on cross domain requests

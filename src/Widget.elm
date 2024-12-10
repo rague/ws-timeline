@@ -95,13 +95,13 @@ main =
 
                     loadManCmd =
                         Http.get
-                            { url = "/public/locales/" ++ String.slice 0 2 lang ++ "/help.md"
+                            { url = "../public/locales/" ++ String.slice 0 2 lang ++ "/help.md"
                             , expect = Http.expectString GotHelp
                             }
 
                     loadTransCmd =
                         Http.get
-                            { url = "/public/locales/" ++ String.slice 0 2 lang ++ "/translations.json"
+                            { url = "../public/locales/" ++ String.slice 0 2 lang ++ "/translations.json"
                             , expect = Http.expectJson GotTranslations I18Next.translationsDecoder
                             }
                 in
