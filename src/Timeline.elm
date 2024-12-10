@@ -1734,7 +1734,7 @@ drawAllGlSections dir width height firstDate move resize visible meshesDict =
             Time.posixToMillis firstDate |> toFloat
     in
     WebGL.toHtmlWith
-        [ WebGL.alpha False, WebGL.antialias ]
+        [ WebGL.alpha True, WebGL.antialias ]
         [ HA.width width
         , HA.height height
         , HA.style "display" "block"
@@ -1936,8 +1936,9 @@ fragmentShaderHoriz =
             vec4 borderColor = bcolor;
             vec4 bgColor = vec4(1.0,1.0,1.0,0.0);
             
-            gl_FragColor = mix(bgColor, mix(mix(rectColor, pointColor, pointAlpha), borderColor, borderAlpha), smoothedAlpha);
-            //gl_FragColor = vcolor;
+            vec4 rgba = mix(bgColor, mix(mix(rectColor, pointColor, pointAlpha), borderColor, borderAlpha), smoothedAlpha);
+            float a = rgba.a;
+            gl_FragColor = vec4(rgba.r * a, rgba.g * a, rgba.b * a, a);
         }
    
 

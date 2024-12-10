@@ -656,6 +656,7 @@ toMeshes first taches =
                 background =
                     vec4 color.red color.green color.blue color.alpha
 
+                -- vec4 (color.red * color.alpha) (color.green * color.alpha) (color.blue * color.alpha) color.alpha
                 border =
                     if section.isFrozen then
                         3
