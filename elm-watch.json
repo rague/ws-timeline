@@ -11,6 +11,12 @@
                 "src/Widget.elm"
             ],
             "output": "public/widget.js"
+        },
+        "Test": {
+            "inputs": [
+                "src/Test.elm"
+            ],
+            "output": "test/test.js"
         }
     },
     "serve": "./"
