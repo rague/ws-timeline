@@ -5,6 +5,7 @@ let app;
 let setRecordsArgs;
 const t = i18next.t;
 
+console.log("Base URI", document.baseURI);
 
 function getLanguage() {
   if (this._lang) {
