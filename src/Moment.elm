@@ -521,6 +521,20 @@ formatPart locale zone time part =
             Time.toMillis zone time
                 |> stringTake 3
 
+        "x" ->
+            FDate.format
+                (FDate.WithOptions
+                    (B.initDate
+                        |> B.setWeekday O.Short
+                        |> B.setDay O.Numeric
+                        |> B.setMonthNumber O.Numeric
+                        |> B.setYear O.TwoDigit
+                        |> B.toOptions
+                    )
+                )
+                locale
+                (Date.fromPosix zone time)
+
         "xx" ->
             FDate.format
                 (FDate.WithOptions

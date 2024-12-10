@@ -1,4 +1,4 @@
-module Timeline exposing (Msg(..), applyAction, calcLayersSize, canEditGroups, canSortGroups, changeLineSize, changeStartAndZoom, changeYOffset, default, init, periodIsEqual, reinit, sectionsView, setLanguage, styles, subscriptions, update, view, zoomAllTime)
+module Timeline exposing (Msg(..), applyAction, calcLayersSize, canEditGroups, canSortGroups, changeLineSize, changeStartAndZoom, changeYOffset, default, init, periodIsEqual, reinit, sectionsView, setLanguage, styles, subscriptions, update, vertical, view, zoomAllTime)
 
 import Browser.Dom
 import Browser.Events
@@ -19,7 +19,7 @@ import Math.Vector3 exposing (Vec3, vec3)
 import Math.Vector4 exposing (Vec4)
 import Moment
 import Set
-import Svg exposing (g, rect)
+import Svg
 import Svg.Attributes exposing (height, width, x, y)
 import Svg.Events exposing (..)
 import Task
@@ -489,6 +489,28 @@ canEditGroups b tl =
     { tl | canEditGroups = b }
 
 
+vertical : Bool -> TimelineBox -> TimelineBox
+vertical bool tl =
+    let
+        dir =
+            if bool then
+                Vertical
+
+            else
+                Horizontal
+    in
+    { tl
+        | direction = dir
+        , dnd = (system dir).model
+        , lineSize =
+            if dir == Horizontal then
+                38
+
+            else
+                120
+    }
+
+
 setLanguage : String -> TimelineBox -> TimelineBox
 setLanguage str tl =
     { tl | locale = Cldr.Locale.fromString Cldr.Locale.basicLocales str |> Maybe.withDefault Cldr.Locale.en }
@@ -551,16 +573,30 @@ view box rect =
         -- mbcursor = (Maybe.map (\time -> (Moment.durationBetween box.first time |> Moment.fromDuration |> toFloat) * box.zoom / duration.day)
         --             (box.cursorTime))
         mbcursor =
-            case box.interaction of
-                MouseOver ( time, _ ) ->
-                    ((time |> snapToGridForZoom box.zoom box.zone |> Time.posixToMillis |> toFloat) - from)
-                        * toFloat width
-                        / (end - from)
-                        |> round
-                        |> Just
+            case box.direction of
+                Horizontal ->
+                    case box.interaction of
+                        MouseOver ( time, _ ) ->
+                            ((time |> snapToGridForZoom box.zoom box.zone |> Time.posixToMillis |> toFloat) - from)
+                                * toFloat width
+                                / (end - from)
+                                |> round
+                                |> Just
 
-                _ ->
-                    Nothing
+                        _ ->
+                            Nothing
+
+                Vertical ->
+                    case box.interaction of
+                        MouseOver ( time, _ ) ->
+                            ((time |> snapToGridForZoom box.zoom box.zone |> Time.posixToMillis |> toFloat) - from)
+                                * toFloat height
+                                / (end - from)
+                                |> round
+                                |> Just
+
+                        _ ->
+                            Nothing
 
         currentTime =
             ((box.currentPosix |> Time.posixToMillis |> toFloat) - from)
@@ -639,26 +675,55 @@ view box rect =
                 , HA.style "overflow" "hidden"
                 , HA.style "left" (String.fromInt (lateral + axisWidth) ++ "px")
                 , HA.style "top" (String.fromInt top ++ "px")
-                , HA.style "width" <| String.fromInt width ++ "px"
+                , HA.style "width" <| String.fromInt (width - axisWidth) ++ "px"
                 , HA.style "height" <| String.fromInt height ++ "px"
                 ]
-                []
+                [ Html.div
+                    [ HA.style "position" "absolute"
+                    , HA.style "overflow" "hidden"
+                    , HA.style "top" "0px"
+                    , HA.style "height" <|
+                        String.fromInt height
+                            ++ "px"
+                    , HA.style "left" <|
+                        (String.fromFloat
+                            box.sectionOffsetY
+                            ++ "px"
+                        )
+                    ]
+                    [ Html.Lazy.lazy2 drawColsBackground box.groups box.lineSize ]
+                ]
         , case ( box.interaction, mbcursor, box.standby ) of
             ( MouseOver _, Just pos, False ) ->
-                Html.div
-                    [ HA.style "position" "absolute"
-                    , HA.style "left" (String.fromInt (pos + lateral) ++ "px")
-                    , HA.style "top" (String.fromInt (top + 5) ++ "px")
-                    , HA.style "width" "0"
-                    , HA.style "height" (String.fromInt height ++ "px")
-                    , HA.style "border-left" "1px solid rgba(100,0,255,0.5)"
-                    , HA.style "z-index" "1"
-                    , HA.style "pointer-events" "none"
-                    ]
-                    []
+                case box.direction of
+                    Horizontal ->
+                        Html.div
+                            [ HA.style "position" "absolute"
+                            , HA.style "left" (String.fromInt (pos + lateral) ++ "px")
+                            , HA.style "top" (String.fromInt (top + 5) ++ "px")
+                            , HA.style "width" "0"
+                            , HA.style "height" (String.fromInt height ++ "px")
+                            , HA.style "border-left" "1px solid rgba(100,0,255,0.5)"
+                            , HA.style "z-index" "1"
+                            , HA.style "pointer-events" "none"
+                            ]
+                            []
+
+                    Vertical ->
+                        Html.div
+                            [ HA.style "position" "absolute"
+                            , HA.style "left" (String.fromInt (lateral + 5) ++ "px")
+                            , HA.style "top" (String.fromInt (top + pos) ++ "px")
+                            , HA.style "width" (String.fromInt width ++ "px")
+                            , HA.style "height" "0"
+                            , HA.style "border-top" "1px solid rgba(100,0,255,0.5)"
+                            , HA.style "z-index" "1"
+                            , HA.style "pointer-events" "none"
+                            ]
+                            []
 
             _ ->
-                Svg.g [] []
+                Html.text ""
         , Html.div
             [ HA.style "position" "absolute"
             , HA.style "left" (String.fromInt lateral ++ "px")
@@ -710,7 +775,7 @@ view box rect =
                 []
 
           else
-            Svg.g [] []
+            Html.text ""
         ]
 
 
@@ -727,6 +792,26 @@ drawRowsBackground groups lineSize =
                         HA.class "group odd"
                     , HA.style "width" "100%"
                     , HA.style "height" <| String.fromFloat (lineSize * toFloat g.size) ++ "px"
+                    ]
+                    []
+            )
+            (groups |> Dict.values |> List.sortBy .position)
+
+
+drawColsBackground : Dict GroupId GroupBox -> Float -> Html Msg
+drawColsBackground groups lineSize =
+    Html.div [ HA.style "height" "100%" ] <|
+        List.indexedMap
+            (\j g ->
+                Html.div
+                    [ if modBy 2 j == 0 then
+                        HA.class "group even"
+
+                      else
+                        HA.class "group odd"
+                    , HA.style "width" <| String.fromFloat (lineSize * toFloat g.size) ++ "px"
+                    , HA.style "height" "100%"
+                    , HA.style "display" "inline-block"
                     ]
                     []
             )
@@ -1566,7 +1651,7 @@ drawHtmlSections direction locale zone _ _ scrollX scrollY allSections mbselecti
                     |> Html.div []
 
             _ ->
-                Svg.g [] []
+                Html.text ""
         ]
 
 
@@ -1996,7 +2081,7 @@ fragmentShaderVert =
 
             // has point
             float pointSize = 2.5;
-            float pointSoftness = 1;
+            float pointSoftness = 1.0;
             float pointDistance = (hasPoint > 0.0) ?  length(sizepix+vec2(-center.x, center.y)-2.5) : pointSize;
             float pointAlpha = 1.0 - smoothstep(pointSize - pointSoftness, pointSize, abs(pointDistance));
             vec4 pointColor = (vcolor.a == 1.0) ? bcolor : vec4(0.0, 0.0, 0.0, 1.0);
@@ -2006,8 +2091,9 @@ fragmentShaderVert =
             vec4 borderColor = bcolor;
             vec4 bgColor = vec4(1.0,1.0,1.0,0.0);
             
-            gl_FragColor = mix(bgColor, mix(mix(rectColor, pointColor, pointAlpha), borderColor, borderAlpha), smoothedAlpha);
-            //gl_FragColor = vcolor;
+            vec4 rgba = mix(bgColor, mix(mix(rectColor, pointColor, pointAlpha), borderColor, borderAlpha), smoothedAlpha);
+            float a = rgba.a;
+            gl_FragColor = vec4(rgba.r * a, rgba.g * a, rgba.b * a, a);
         }
    
 

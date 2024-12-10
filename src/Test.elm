@@ -38,9 +38,11 @@ main =
             \_ ->
                 ( { timelineState =
                         Timeline.init
+                            -- []
                             groupsData
                             |> Timeline.canEditGroups False
                             |> Timeline.canSortGroups False
+                            |> Timeline.vertical True
                   , box =
                         { width = 1000
                         , height = 500
@@ -63,7 +65,8 @@ view : Model -> { title : String, body : List (Html.Html Msg) }
 view model =
     { title = "Timeline"
     , body =
-        [ Html.node "style" [] [ Html.text Timeline.styles ]
+        [ Html.node "style" [] [ Html.text "body {margin:0}" ]
+        , Html.node "style" [] [ Html.text Timeline.styles ]
         , Timeline.view model.timelineState model.box
             |> Html.map TimelineMsg
         ]
@@ -142,7 +145,7 @@ cols =
 
 rows : Int
 rows =
-    25
+    20
 
 
 groupsData : List Group

@@ -55,7 +55,7 @@ axisDefs =
       , divs =
             [ { delta = 5, unit = Minute, hformat = Just "", vformat = Just "" }
             , { delta = 15, unit = Minute, hformat = Nothing, vformat = Nothing }
-            , { delta = 1, unit = Hour, hformat = Just "xx", vformat = Just "xx" }
+            , { delta = 1, unit = Hour, hformat = Just "xx", vformat = Just "x" }
             ]
       }
     , { unit = 1 / 6
@@ -63,7 +63,7 @@ axisDefs =
       , divs =
             [ { delta = 15, unit = Minute, hformat = Nothing, vformat = Nothing }
             , { delta = 1, unit = Hour, hformat = Nothing, vformat = Nothing }
-            , { delta = 1, unit = Day, hformat = Just "xx", vformat = Just "xx" }
+            , { delta = 1, unit = Day, hformat = Just "xx", vformat = Just "x" }
             ]
       }
     , { unit = 1 / 5
@@ -71,15 +71,15 @@ axisDefs =
       , divs =
             [ { delta = 30, unit = Minute, hformat = Nothing, vformat = Nothing }
             , { delta = 1, unit = Hour, hformat = Nothing, vformat = Nothing }
-            , { delta = 1, unit = Day, hformat = Just "xx", vformat = Just "xx" }
+            , { delta = 1, unit = Day, hformat = Just "xx", vformat = Just "x" }
             ]
       }
     , { unit = 1 / 2
       , snap = 1 / 2
       , divs =
             [ { delta = 2, unit = Hour, hformat = Nothing, vformat = Nothing }
-            , { delta = 12, unit = Hour, hformat = Just "", vformat = Nothing }
-            , { delta = 1, unit = Day, hformat = Just "xx", vformat = Just "xx" }
+            , { delta = 12, unit = Hour, hformat = Just "", vformat = Just "" }
+            , { delta = 1, unit = Day, hformat = Just "xx", vformat = Just "x" }
             ]
       }
     , { unit = 1
@@ -90,7 +90,7 @@ axisDefs =
             -- , { delta = 12, unit = Hour, hformat = Just "", vformat = Nothing }
             -- , { delta = 1, unit = Day, hformat = Just "ddd dd/MM", vformat = Just "ddd dd/MM" }
             , { delta = 1, unit = Day, hformat = Just "ddd dd", vformat = Just "ddd dd" }
-            , { delta = 1, unit = Month, hformat = Just "MMMM yyyy", vformat = Just "MMMM yyyy" }
+            , { delta = 1, unit = Month, hformat = Just "MMMM yyyy", vformat = Just "MMM yyyy" }
             ]
       }
     , { unit = 2
@@ -100,7 +100,7 @@ axisDefs =
 
             -- , { delta = 12, unit = Hour, hformat = Just "", vformat = Nothing }
             , { delta = 1, unit = Day, hformat = Just "ddd dd", vformat = Just "ddd dd/MM" }
-            , { delta = 1, unit = Month, hformat = Just "MMMM yyyy", vformat = Just "MMMM yyyy" }
+            , { delta = 1, unit = Month, hformat = Just "MMMM yyyy", vformat = Just "MMM yyyy" }
             ]
       }
     , { unit = 4
@@ -108,7 +108,7 @@ axisDefs =
       , divs =
             [ { delta = 12, unit = Hour, hformat = Just "", vformat = Nothing }
             , { delta = 1, unit = Day, hformat = Nothing, vformat = Nothing }
-            , { delta = 1, unit = Month, hformat = Just "MMMM yyyy", vformat = Just "MMMM yyyy" }
+            , { delta = 1, unit = Month, hformat = Just "MMMM yyyy", vformat = Just "MMM yyyy" }
             ]
       }
     , { unit = 6
@@ -116,7 +116,7 @@ axisDefs =
       , divs =
             [ { delta = 1, unit = Day, hformat = Nothing, vformat = Nothing }
             , { delta = 1, unit = Week, hformat = Nothing, vformat = Nothing }
-            , { delta = 1, unit = Month, hformat = Just "MMMM yyyy", vformat = Just "MMMM yyyy" }
+            , { delta = 1, unit = Month, hformat = Just "MMMM yyyy", vformat = Just "MMM yyyy" }
             ]
       }
     , { unit = 12
@@ -124,15 +124,23 @@ axisDefs =
       , divs =
             [ { delta = 1, unit = Day, hformat = Just "dd", vformat = Nothing }
             , { delta = 1, unit = Week, hformat = Nothing, vformat = Nothing }
-            , { delta = 1, unit = Month, hformat = Just "MMMM yyyy", vformat = Just "MMMM yyyy" }
+            , { delta = 1, unit = Month, hformat = Just "MMMM yyyy", vformat = Just "MMM yyyy" }
             ]
       }
     , { unit = 40
       , snap = 24
       , divs =
-            [ { delta = 1, unit = Day, hformat = Just "", vformat = Nothing }
-            , { delta = 1, unit = Week, hformat = Just "ddd dd", vformat = Nothing }
-            , { delta = 1, unit = Month, hformat = Just "MMMM yyyy", vformat = Just "MMMM yyyy" }
+            [ { delta = 1, unit = Day, hformat = Just "", vformat = Just "" }
+            , { delta = 1, unit = Week, hformat = Just "ddd dd", vformat = Just "ddd dd" }
+            , { delta = 1, unit = Month, hformat = Just "MMMM yyyy", vformat = Just "MMM yyyy" }
+            ]
+      }
+    , { unit = 60
+      , snap = 168
+      , divs =
+            [ { delta = 1, unit = Week, hformat = Just "dd", vformat = Just "dd" }
+            , { delta = 1, unit = Month, hformat = Nothing, vformat = Nothing }
+            , { delta = 1, unit = Year, hformat = Nothing, vformat = Nothing }
             ]
       }
 
@@ -153,7 +161,7 @@ lastDef =
     { unit = 200
     , snap = 168
     , divs =
-        [ { delta = 1, unit = Week, hformat = Just "dd", vformat = Nothing }
+        [ { delta = 1, unit = Week, hformat = Just "", vformat = Just "" }
         , { delta = 1, unit = Month, hformat = Nothing, vformat = Nothing }
         , { delta = 1, unit = Year, hformat = Nothing, vformat = Nothing }
         ]
@@ -199,10 +207,10 @@ axis dir locale zone from to size =
 
         safe =
             if dir == Horizontal then
-                100
+                120
 
             else
-                20
+                25
     in
     -- DrawText ((to - from) / 2 * fac) 2 10 (String.fromFloat grid.unit)
     List.concat <|
@@ -321,6 +329,14 @@ hview attrs locale zone width height from to =
         ]
 
 
+vposArray =
+    Array.fromList [ 0, -40, -100, -180 ]
+
+
+vpos idx =
+    Array.get (round idx) vposArray |> Maybe.withDefault 0
+
+
 vview : List (Html.Attribute msg) -> Cldr.Locale.Locale -> Time.Zone -> Int -> Int -> Float -> Float -> Html msg
 vview attrs locale zone width height from to =
     let
@@ -348,7 +364,9 @@ vview attrs locale zone width height from to =
                             line
                                 [ y1 <| String.fromFloat top
                                 , y2 <| String.fromFloat top
-                                , x1 <| String.fromFloat (-60 * left + 120)
+
+                                -- , x1 <| String.fromFloat (-60 * left + 120)
+                                , x1 <| String.fromFloat (vpos left + 120)
                                 , x2 <| String.fromInt width
                                 , stroke lineColor
                                 , strokeWidth <| String.fromFloat weight
@@ -358,7 +376,9 @@ vview attrs locale zone width height from to =
                         DrawText top left size label ->
                             text_
                                 [ y <| String.fromFloat (12 + top)
-                                , x <| String.fromFloat (-60 * left + 175)
+
+                                -- , x <| String.fromFloat (-60 * left + 175)
+                                , x <| String.fromFloat (vpos left + 175)
                                 , SA.textAnchor "end"
                                 , SA.style ("font-size:" ++ String.fromFloat size ++ "px")
                                 ]
