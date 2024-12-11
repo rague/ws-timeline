@@ -665,7 +665,7 @@ view box rect =
                             ++ "px"
                         )
                     ]
-                    [ Html.Lazy.lazy2 drawRowsBackground box.groups box.lineSize ]
+                    [ Html.Lazy.lazy3 drawRowsBackground box.groups box.lineSize box.selection ]
                 ]
 
           else
@@ -690,7 +690,7 @@ view box rect =
                             ++ "px"
                         )
                     ]
-                    [ Html.Lazy.lazy2 drawColsBackground box.groups box.lineSize ]
+                    [ Html.Lazy.lazy3 drawColsBackground box.groups box.lineSize box.selection ]
                 ]
         , case ( box.interaction, mbcursor, box.standby ) of
             ( MouseOver _, Just pos, False ) ->
@@ -778,43 +778,53 @@ view box rect =
         ]
 
 
-drawRowsBackground : Dict GroupId GroupBox -> Float -> Html Msg
-drawRowsBackground groups lineSize =
+drawRowsBackground : Dict GroupId GroupBox -> Float -> Selection -> Html Msg
+drawRowsBackground groups lineSize sel =
     Html.div [] <|
         List.indexedMap
-            (\j g ->
+            (\j ( id, g ) ->
                 Html.div
                     [ if modBy 2 j == 0 then
                         HA.class "group even"
 
                       else
                         HA.class "group odd"
+                    , if isGroupSelected id sel then
+                        HA.class "selected"
+
+                      else
+                        HA.class ""
                     , HA.style "width" "100%"
                     , HA.style "height" <| String.fromFloat (lineSize * toFloat g.size) ++ "px"
                     ]
                     []
             )
-            (groups |> Dict.values |> List.sortBy .position)
+            (groups |> Dict.toList |> List.sortBy (Tuple.second >> .position))
 
 
-drawColsBackground : Dict GroupId GroupBox -> Float -> Html Msg
-drawColsBackground groups lineSize =
+drawColsBackground : Dict GroupId GroupBox -> Float -> Selection -> Html Msg
+drawColsBackground groups lineSize sel =
     Html.div [ HA.style "height" "100%" ] <|
         List.indexedMap
-            (\j g ->
+            (\j ( id, g ) ->
                 Html.div
                     [ if modBy 2 j == 0 then
                         HA.class "group veven"
 
                       else
                         HA.class "group odd"
+                    , if isGroupSelected id sel then
+                        HA.class "selected"
+
+                      else
+                        HA.class ""
                     , HA.style "width" <| String.fromFloat (lineSize * toFloat g.size) ++ "px"
                     , HA.style "height" "100%"
                     , HA.style "display" "inline-block"
                     ]
                     []
             )
-            (groups |> Dict.values |> List.sortBy .position)
+            (groups |> Dict.toList |> List.sortBy (Tuple.second >> .position))
 
 
 type Msg
@@ -865,10 +875,10 @@ drawGroups box size fullWidth height =
         )
         [ Html.node "style" [] [ Html.text ".handle:hover {background-color:rgba(0,0,250,0.05);}" ]
         , groups
-            |> Dict.values
-            |> List.sortBy .position
+            |> Dict.toList
+            |> List.sortBy (Tuple.second >> .position)
             |> List.indexedMap
-                (\idx grp ->
+                (\idx ( id, grp ) ->
                     groupView box.dnd
                         box.direction
                         box.lineSize
@@ -894,6 +904,7 @@ drawGroups box size fullWidth height =
                         grp
                         box.canEditGroups
                         box.canSortGroups
+                        (isGroupSelected id box.selection)
                 )
             |> HKeyed.node "div"
                 (if box.direction == Horizontal then
@@ -942,8 +953,8 @@ handleStyle =
     ]
 
 
-groupView : DnDList.Model -> Direction -> Float -> Int -> Int -> Maybe String -> Int -> GroupBox -> Bool -> Bool -> ( String, Html.Html Msg )
-groupView dnd direction lineSize size fullSize mbedit index group canEditG canSortG =
+groupView : DnDList.Model -> Direction -> Float -> Int -> Int -> Maybe String -> Int -> GroupBox -> Bool -> Bool -> Bool -> ( String, Html.Html Msg )
+groupView dnd direction lineSize size fullSize mbedit index group canEditG canSortG selected =
     let
         itemId =
             "id-" ++ group.id
@@ -985,6 +996,11 @@ groupView dnd direction lineSize size fullSize mbedit index group canEditG canSo
 
                             else
                                 "group odd"
+                        , if selected then
+                            HA.class "selected"
+
+                          else
+                            HA.class ""
 
                         -- , HA.style "background-color"
                         --     (if index == dropIndex then
@@ -1038,6 +1054,11 @@ groupView dnd direction lineSize size fullSize mbedit index group canEditG canSo
 
                         else
                             "group odd"
+                    , if selected then
+                        HA.class "selected"
+
+                      else
+                        HA.class ""
 
                     -- , HA.style "background-color"
                     --     (if modBy 2 index == 0 then
@@ -2360,6 +2381,10 @@ styles =
             , prop "border-top" "solid 1px #eaeaea"
             , prop "border-bottom" "solid 1px #eaeaea"
             ]
+
+        -- , child ".group.even.selected"
+        --     [ prop "background-color" "#efeff7"
+        --     ]
         , child ".group.veven"
             [ prop "background-color" "#f7f7f7"
             , prop "box-sizing" "border-box"
@@ -2367,6 +2392,11 @@ styles =
             , prop "border-right" "solid 1px #eaeaea"
             ]
         , child ".group.odd" [ prop "background-color" "white" ]
+
+        -- , child ".group.odd.selected"
+        --     [ prop "background-color" "#f5f5ff"
+        --     ]
+        , child ".group.selected" [ prop "font-weight" "800" ]
         , sister ":focus-visible" [ prop "outline" "none" ]
         , sister ":focus" [ child ".group >div" [ prop "background-color" "rgba(100,100,255,0.1)" ] ]
         , child "g.section"

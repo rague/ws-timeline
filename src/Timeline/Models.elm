@@ -31,6 +31,7 @@ module Timeline.Models exposing
     , findColorName
     , foldSelection
     , groupDiffSelection
+    , isGroupSelected
     , isSelected
     , jaune
     , magenta
@@ -261,6 +262,13 @@ isSelected : GroupId -> SectionId -> Selection -> Bool
 isSelected gid sid (Selection sel) =
     Dict.get gid sel
         |> Maybe.map (\set -> Set.member sid set)
+        |> Maybe.withDefault False
+
+
+isGroupSelected : GroupId -> Selection -> Bool
+isGroupSelected gid (Selection sel) =
+    Dict.get gid sel
+        |> Maybe.map (\set -> not (Set.isEmpty set))
         |> Maybe.withDefault False
 
 
