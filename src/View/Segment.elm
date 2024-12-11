@@ -52,6 +52,7 @@ styles =
 }
 
 .segment-radio > span {
+    display: inline-block;
     cursor: pointer;
     padding: 4px 8px;
     border: 1px solid #BBB;
