@@ -28,6 +28,7 @@ import Select.Styles as Styles
 import Set exposing (Set)
 import Time exposing (Posix)
 import Timeline.Models exposing (Direction(..))
+import View.Segment as Segment
 
 
 type alias Settings =
@@ -1488,7 +1489,7 @@ view model =
             HA.class ""
         ]
         ([ Html.node "style" [] [ Html.text styles ]
-         , menu ShowPanel
+         , Segment.menu ShowPanel
             model.panel
             [ { value = General, label = Html.text "Données et aspect" }
             , { value = Filters, label = Html.text "Trier et filtrer" }
@@ -1628,7 +1629,7 @@ generalView ({ settings, form, lang } as model) =
     , section (T.pageLayout lang)
     , Html.div [ HA.class "horiz" ]
         [ label [] (T.orientation lang) <|
-            radio UpdateLayout
+            Segment.radio UpdateLayout
                 settings.layout
                 [ { value = Portrait, label = Html.span [] [ icon [ HA.style "margin-right" "6px" ] Phosphor.file, T.portrait lang |> Html.text ] }
                 , { value = Landscape, label = Html.span [] [ icon [ HA.style "margin-right" "6px", HA.style "transform" "rotate(90deg)" ] Phosphor.file, T.landscape lang |> Html.text ] }
@@ -1650,13 +1651,13 @@ generalView ({ settings, form, lang } as model) =
     , section "Affichage des tâches"
     , Html.div [ HA.class "horiz" ]
         [ label [] "Sens" <|
-            radio UpdateOrientation
+            Segment.radio UpdateOrientation
                 settings.orientation
                 [ { value = Horizontal, label = T.horizontal lang |> Html.text }
                 , { value = Vertical, label = T.vertical lang |> Html.text }
                 ]
         , label [] (T.align lang) <|
-            radio UpdateAlign
+            Segment.radio UpdateAlign
                 settings.align
                 [ { value = Left, label = icon [] Phosphor.textAlignLeft }
                 , { value = Middle, label = icon [] Phosphor.textAlignCenter }
@@ -1854,45 +1855,6 @@ filterEditView model maybeFilter settings =
 
 
 -- Form Helpers
-
-
-type TabStyle
-    = TS_Menu
-    | TS_Radio
-
-
-menu =
-    tabs TS_Menu
-
-
-radio =
-    tabs TS_Radio
-
-
-tabs : TabStyle -> (value -> msg) -> value -> List { value : value, label : Html msg } -> Html msg
-tabs style toMsg sel opts =
-    Html.div
-        [ case style of
-            TS_Menu ->
-                HA.class "tabs-menu"
-
-            TS_Radio ->
-                HA.class "tabs-radio"
-        ]
-    <|
-        List.map
-            (\opt ->
-                Html.span
-                    [ if opt.value == sel then
-                        HA.class "selected"
-
-                      else
-                        HA.class ""
-                    , HE.onClick (toMsg opt.value)
-                    ]
-                    [ opt.label ]
-            )
-            opts
 
 
 icon attrs icn =
