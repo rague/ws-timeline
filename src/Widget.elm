@@ -33,8 +33,9 @@ import Time
 import Time.Extra as TimeX
 import Timeline
 import Timeline.Action
-import Timeline.Models exposing (Group, Interaction(..), selectionIsEmpty)
+import Timeline.Models exposing (Direction(..), Group, Interaction(..), selectionIsEmpty)
 import Timeline.Update
+import View.Segment as Segment
 import Widget.Language exposing (defaultLanguage)
 import Widget.Translations as T
 
@@ -59,7 +60,8 @@ type Msg
     | AddError String
     | GotHelp (Result Http.Error String)
     | GotTranslations (Result Http.Error I18Next.Translations)
-    | ShowHelp Bool
+    | ShowModal Modal
+    | UpdateDirection Direction
 
 
 type alias Model =
@@ -80,8 +82,14 @@ type alias Model =
     , language : String
     , translations : List I18Next.Translations
     , help : String
-    , showHelp : Bool
+    , showModal : Modal
     }
+
+
+type Modal
+    = None
+    | Help
+    | Settings
 
 
 main : Program Value Model Msg
@@ -126,7 +134,7 @@ main =
                   , showInspector = False
                   , language = lang
                   , help = ""
-                  , showHelp = False
+                  , showModal = None
                   , translations = [ defaultLanguage ]
                   }
                   -- , initialSizeCmd
@@ -147,6 +155,22 @@ main =
                     , setError AddError
                     , Browser.Events.onResize sizeToMsg
                     , Sub.map TimelineMsg (Timeline.subscriptions model.timelineState)
+                    , case model.showModal of
+                        None ->
+                            Sub.none
+
+                        _ ->
+                            Browser.Events.onKeyDown
+                                (Decode.field "key" Decode.string
+                                    |> Decode.andThen
+                                        (\key ->
+                                            if key == "Escape" then
+                                                Decode.succeed (ShowModal None)
+
+                                            else
+                                                Decode.fail ""
+                                        )
+                                )
                     ]
         }
 
@@ -156,7 +180,7 @@ view model =
     { title = "WeSchedule"
     , body =
         [ Html.node "style" [] [ Html.text Timeline.styles ]
-        , Html.node "style" [] [ Html.text styles ]
+        , Html.node "style" [] [ Html.text (styles ++ Segment.styles) ]
         , Timeline.view model.timelineState model.box
             |> Html.map TimelineMsg
         , Html.div
@@ -164,9 +188,15 @@ view model =
             , HA.style "position" "absolute"
             , HA.style "top" "5px"
             ]
-            [ Html.button [ Html.Events.onClick (ShowHelp (not model.showHelp)) ]
+            [ Html.button [ Html.Events.onClick (ShowModal Help) ]
                 [ Phosphor.questionMark Bold
-                    |> Phosphor.withSize 16
+                    |> Phosphor.withSize 14
+                    |> Phosphor.withSizeUnit "px"
+                    |> Phosphor.toHtml [ HA.style "vertical-align" "sub" ]
+                ]
+            , Html.button [ Html.Events.onClick (ShowModal Settings) ]
+                [ Phosphor.gearFine Bold
+                    |> Phosphor.withSize 14
                     |> Phosphor.withSizeUnit "px"
                     |> Phosphor.toHtml [ HA.style "vertical-align" "sub" ]
                 ]
@@ -176,16 +206,38 @@ view model =
 
           else
             inspectorView model
-        , if model.showHelp then
-            Html.div
-                [ HA.class "help"
-                , Html.Events.onClick (ShowHelp False)
-                ]
-            <|
-                [ Markdown.toHtml [] model.help ]
+        , case model.showModal of
+            Help ->
+                Html.div
+                    [ HA.class "modal"
+                    , Html.Events.onClick (ShowModal None)
+                    ]
+                    [ Html.div
+                        [ HA.class "help" ]
+                        [ Markdown.toHtml [] model.help ]
+                    ]
 
-          else
-            Html.text ""
+            Settings ->
+                Html.div []
+                    [ Html.div
+                        [ HA.class "modal"
+                        , Html.Events.onClick (ShowModal None)
+                        ]
+                        []
+                    , Html.div
+                        [ HA.class "settings" ]
+                        [ Html.h1 [] [ Html.text "Réglages" ]
+                        , Html.label [] [ Html.text "Direction de la timeline" ]
+                        , Segment.radio UpdateDirection
+                            model.timelineState.direction
+                            [ { value = Horizontal, label = Html.text "Horizontal" }
+                            , { value = Vertical, label = Html.text "Vertical" }
+                            ]
+                        ]
+                    ]
+
+            None ->
+                Html.text ""
         , if List.isEmpty model.error then
             Html.text ""
 
@@ -660,8 +712,11 @@ update msg model =
                 Err _ ->
                     ( addError "Can't load translation file : Http error" model, Cmd.none )
 
-        ShowHelp bool ->
-            ( { model | showHelp = bool }, Cmd.none )
+        ShowModal modal ->
+            ( { model | showModal = modal }, Cmd.none )
+
+        UpdateDirection dir ->
+            ( { model | timelineState = Timeline.vertical (dir == Vertical) model.timelineState }, Cmd.none )
 
 
 timelineUpdate : Timeline.Msg -> Model -> ( Model, Cmd Msg )
@@ -1389,12 +1444,20 @@ body {
 
 }
 
+.modal {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,.2);
+}
 
 .help {
     position: absolute;
     top: 10px;
     background-color: white;
-    width: 80%;
+    max-width: 80%;
     max-height: 90%;
     padding: 10px 30px;
     left: 40px;
@@ -1414,6 +1477,34 @@ body {
 .help div {
     height: 100%;
     overflow: auto;
+}
+
+.settings {
+    position: absolute;
+    top: 10px;
+    background-color: white;
+    max-width: 80%;
+    max-height: 90%;
+    padding: 10px 30px 20px 30px;
+    left: 68px;
+    font-family: sans-serif;
+    font-size: 14px;
+    box-shadow: 0px 10px 24px 0px rgba(0,0,0,0.34);
+
+    h1 {
+        font-size: 20px;
+    }
+
+    h2 {
+        font-size: 16px;
+    }
+
+    label {
+        text-transform: uppercase;
+        font-size: 10px;
+        color: #262626;
+        display: block;
+    }
 }
 
 .errors {
