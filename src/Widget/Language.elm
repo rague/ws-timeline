@@ -19,12 +19,16 @@ defaultLanguage =
                 , ( "editableColumns", I18Next.string "Editable columns" )
                 , ( "endDate", I18Next.string "End date" )
                 , ( "groupBy", I18Next.string "Group by" )
+                , ( "horizontal", I18Next.string "Horizontal" )
                 , ( "hoursShort", I18Next.string "h" )
                 , ( "moment", I18Next.string "moment" )
                 , ( "moment_plural", I18Next.string "moments" )
+                , ( "settings", I18Next.string "Settings" )
                 , ( "startDate", I18Next.string "Start date" )
                 , ( "subgroupBy", I18Next.string "Then group by" )
                 , ( "timeRange", I18Next.string "Time range: " )
+                , ( "timelineDirection", I18Next.string "Timeline direction" )
+                , ( "vertical", I18Next.string "Vertical" )
                 ]
           )
         ]

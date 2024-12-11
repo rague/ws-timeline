@@ -1,4 +1,4 @@
-module Timeline exposing (Msg(..), applyAction, calcLayersSize, canEditGroups, canSortGroups, changeLineSize, changeStartAndZoom, changeYOffset, default, init, periodIsEqual, reinit, sectionsView, setLanguage, styles, subscriptions, update, vertical, view, zoomAllTime)
+module Timeline exposing (Msg(..), applyAction, calcLayersSize, canEditGroups, canSortGroups, changeDirection, changeLineSize, changeStartAndZoom, changeYOffset, default, init, periodIsEqual, reinit, sectionsView, setLanguage, styles, subscriptions, update, vertical, view, zoomAllTime)
 
 import Browser.Dom
 import Browser.Events
@@ -489,6 +489,14 @@ canEditGroups b tl =
     { tl | canEditGroups = b }
 
 
+changeDirection : Direction -> TimelineBox -> TimelineBox
+changeDirection dir tl =
+    { tl
+        | direction = dir
+        , dnd = (system dir).model
+    }
+
+
 vertical : Bool -> TimelineBox -> TimelineBox
 vertical bool tl =
     let
@@ -499,16 +507,7 @@ vertical bool tl =
             else
                 Horizontal
     in
-    { tl
-        | direction = dir
-        , dnd = (system dir).model
-        , lineSize =
-            if dir == Horizontal then
-                38
-
-            else
-                120
-    }
+    changeDirection dir tl
 
 
 setLanguage : String -> TimelineBox -> TimelineBox
@@ -950,7 +949,12 @@ groupView dnd direction lineSize size fullSize mbedit index group canEditG canSo
             "id-" ++ group.id
 
         fontSize =
-            HA.style "font-size" ((String.fromFloat <| min 15 <| ((lineSize |> logBase 5) * 5)) ++ "px")
+            case direction of
+                Horizontal ->
+                    HA.style "font-size" ((String.fromFloat <| min 15 <| ((lineSize |> logBase 5) * 5)) ++ "px")
+
+                Vertical ->
+                    HA.style "font-size" ((String.fromFloat <| min 15 <| ((lineSize |> logBase 6) * 4)) ++ "px")
 
         ( ( w, h, disp ), ( nw, nh ) ) =
             if direction == Horizontal then

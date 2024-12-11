@@ -48,6 +48,11 @@ groupBy translations =
     I18Next.tf translations "groupBy"
 
 
+horizontal : List I18Next.Translations -> String
+horizontal translations =
+    I18Next.tf translations "horizontal"
+
+
 hoursShort : List I18Next.Translations -> String
 hoursShort translations =
     I18Next.tf translations "hoursShort"
@@ -63,6 +68,11 @@ momentPlural translations =
     I18Next.tf translations "moment_plural"
 
 
+settings : List I18Next.Translations -> String
+settings translations =
+    I18Next.tf translations "settings"
+
+
 startDate : List I18Next.Translations -> String
 startDate translations =
     I18Next.tf translations "startDate"
@@ -76,3 +86,13 @@ subgroupBy translations =
 timeRange : List I18Next.Translations -> String
 timeRange translations =
     I18Next.tf translations "timeRange"
+
+
+timelineDirection : List I18Next.Translations -> String
+timelineDirection translations =
+    I18Next.tf translations "timelineDirection"
+
+
+vertical : List I18Next.Translations -> String
+vertical translations =
+    I18Next.tf translations "vertical"

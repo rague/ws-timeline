@@ -13,5 +13,9 @@
     "cumulativeDuration": "Cumulative duration: ",
     "timeRange": "Time range: ",
     "hoursShort": "h",
-    "daysShort": "d"
+    "daysShort": "d",
+    "settings": "Settings",
+    "timelineDirection": "Timeline direction",
+    "horizontal": "Horizontal",
+    "vertical": "Vertical"
 }

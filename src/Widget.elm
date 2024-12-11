@@ -127,7 +127,7 @@ main =
                         }
                   , bounce = Bounce.init
                   , fields = Dict.empty
-                  , options = Options 0 0 0 38
+                  , options = Options 0 0 0 38 Horizontal
                   , records = Dict.empty
                   , selectStates = Dict.empty
                   , focus = ""
@@ -214,7 +214,14 @@ view model =
                     ]
                     [ Html.div
                         [ HA.class "help" ]
-                        [ Markdown.toHtml [] model.help ]
+                        [ Html.button [ HA.class "close-button", Html.Events.onClick (ShowModal None) ]
+                            [ Phosphor.x Bold
+                                |> Phosphor.withSize 14
+                                |> Phosphor.withSizeUnit "px"
+                                |> Phosphor.toHtml [ HA.style "vertical-align" "sub" ]
+                            ]
+                        , Markdown.toHtml [] model.help
+                        ]
                     ]
 
             Settings ->
@@ -226,12 +233,18 @@ view model =
                         []
                     , Html.div
                         [ HA.class "settings" ]
-                        [ Html.h1 [] [ Html.text "Réglages" ]
-                        , Html.label [] [ Html.text "Direction de la timeline" ]
+                        [ Html.button [ HA.class "close-button", Html.Events.onClick (ShowModal None) ]
+                            [ Phosphor.x Bold
+                                |> Phosphor.withSize 14
+                                |> Phosphor.withSizeUnit "px"
+                                |> Phosphor.toHtml [ HA.style "vertical-align" "sub" ]
+                            ]
+                        , Html.h1 [] [ Html.text (T.settings model.translations) ]
+                        , Html.label [] [ Html.text (T.timelineDirection model.translations) ]
                         , Segment.radio UpdateDirection
                             model.timelineState.direction
-                            [ { value = Horizontal, label = Html.text "Horizontal" }
-                            , { value = Vertical, label = Html.text "Vertical" }
+                            [ { value = Horizontal, label = Html.text (T.horizontal model.translations) }
+                            , { value = Vertical, label = Html.text (T.vertical model.translations) }
                             ]
                         ]
                     ]
@@ -591,7 +604,14 @@ update msg model =
                         | timelineState =
                             Timeline.changeStartAndZoom options.start options.zoom model.timelineState
                                 |> Timeline.changeYOffset options.sectionOffsetY
-                                |> Timeline.changeLineSize options.lineSize
+                                |> Timeline.changeLineSize
+                                    (if options.direction == Vertical then
+                                        options.lineSize * 2
+
+                                     else
+                                        options.lineSize
+                                    )
+                                |> Timeline.changeDirection options.direction
                         , options = options
                       }
                     , Cmd.none
@@ -716,7 +736,26 @@ update msg model =
             ( { model | showModal = modal }, Cmd.none )
 
         UpdateDirection dir ->
-            ( { model | timelineState = Timeline.vertical (dir == Vertical) model.timelineState }, Cmd.none )
+            let
+                options =
+                    model.options
+
+                size =
+                    case dir of
+                        Horizontal ->
+                            model.options.lineSize
+
+                        Vertical ->
+                            model.options.lineSize * 2
+            in
+            ( { model
+                | timelineState =
+                    Timeline.changeDirection dir model.timelineState
+                        |> Timeline.changeLineSize size
+                , options = { options | direction = dir }
+              }
+            , Bounce.delay 500 OptionsBounceMsg
+            )
 
 
 timelineUpdate : Timeline.Msg -> Model -> ( Model, Cmd Msg )
@@ -821,7 +860,16 @@ timelineUpdate tmsg model =
         , options =
             case action of
                 Timeline.Action.ChangeZoom { start, zoom, sectionOffsetY, lineSize } ->
-                    Options start zoom sectionOffsetY lineSize
+                    Options start
+                        zoom
+                        sectionOffsetY
+                        (if state.direction == Vertical then
+                            lineSize / 2
+
+                         else
+                            lineSize
+                        )
+                        model.timelineState.direction
 
                 _ ->
                     model.options
@@ -1365,6 +1413,7 @@ type alias Options =
     , zoom : Float
     , sectionOffsetY : Float
     , lineSize : Float
+    , direction : Direction
     }
 
 
@@ -1375,6 +1424,7 @@ optionsDecoder =
         |> required "zoom" Decode.float
         |> optional "sectionOffsetY" Decode.float 0
         |> optional "lineSize" Decode.float 38
+        |> optional "direction" directionDecoder Horizontal
 
 
 encodeOptions : Options -> Value
@@ -1384,7 +1434,35 @@ encodeOptions options =
         , ( "zoom", Encode.float options.zoom )
         , ( "sectionOffsetY", Encode.float options.sectionOffsetY )
         , ( "lineSize", Encode.float options.lineSize )
+        , ( "direction", encodeDirection options.direction )
         ]
+
+
+directionDecoder : Decoder Direction
+directionDecoder =
+    Decode.string
+        |> Decode.map
+            (\dir ->
+                case dir of
+                    "horizontal" ->
+                        Horizontal
+
+                    "vertical" ->
+                        Vertical
+
+                    _ ->
+                        Horizontal
+            )
+
+
+encodeDirection : Direction -> Value
+encodeDirection dir =
+    case dir of
+        Horizontal ->
+            Encode.string "horizontal"
+
+        Vertical ->
+            Encode.string "vertical"
 
 
 
@@ -1544,6 +1622,19 @@ body {
     &:hover {
         background-color: #B4CCE1;
     }
+}
+
+.close-button {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 3px;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    border: none;
+    background: none;
+    
 }
 """
 

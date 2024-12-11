@@ -13,5 +13,9 @@
     "cumulativeDuration": "Durée cumulée : ",
     "timeRange": "Fourchette horaire : ",
     "hoursShort": "h",
-    "daysShort": "j"
+    "daysShort": "j",
+    "settings": "Réglages",
+    "timelineDirection": "Direction de la timeline",
+    "horizontal": "Horizontal",
+    "vertical": "Vertical"
 }
