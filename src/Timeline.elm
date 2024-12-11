@@ -804,7 +804,7 @@ drawColsBackground groups lineSize =
             (\j g ->
                 Html.div
                     [ if modBy 2 j == 0 then
-                        HA.class "group even"
+                        HA.class "group veven"
 
                       else
                         HA.class "group odd"
@@ -977,7 +977,11 @@ groupView dnd direction lineSize size fullSize mbedit index group canEditG canSo
                                 "group move"
 
                             else if modBy 2 index == 0 then
-                                "group even"
+                                if direction == Horizontal then
+                                    "group even"
+
+                                else
+                                    "group veven"
 
                             else
                                 "group odd"
@@ -1026,7 +1030,11 @@ groupView dnd direction lineSize size fullSize mbedit index group canEditG canSo
                     , HA.style "width" (String.fromFloat w ++ "px")
                     , HA.class <|
                         if modBy 2 index == 0 then
-                            "group even"
+                            if direction == Horizontal then
+                                "group even"
+
+                            else
+                                "group veven"
 
                         else
                             "group odd"
@@ -2349,8 +2357,14 @@ styles =
         , child ".group.even"
             [ prop "background-color" "#f7f7f7"
             , prop "box-sizing" "border-box"
-            , prop "border-top" "solid 1px #eeeeee"
-            , prop "border-bottom" "solid 1px #eeeeee"
+            , prop "border-top" "solid 1px #eaeaea"
+            , prop "border-bottom" "solid 1px #eaeaea"
+            ]
+        , child ".group.veven"
+            [ prop "background-color" "#f7f7f7"
+            , prop "box-sizing" "border-box"
+            , prop "border-left" "solid 1px #eaeaea"
+            , prop "border-right" "solid 1px #eaeaea"
             ]
         , child ".group.odd" [ prop "background-color" "white" ]
         , sister ":focus-visible" [ prop "outline" "none" ]
