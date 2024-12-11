@@ -18,6 +18,11 @@ content translations =
     I18Next.tf translations "content"
 
 
+create : List I18Next.Translations -> String
+create translations =
+    I18Next.tf translations "create"
+
+
 cumulativeDuration : List I18Next.Translations -> String
 cumulativeDuration translations =
     I18Next.tf translations "cumulativeDuration"
@@ -66,6 +71,11 @@ moment translations =
 momentPlural : List I18Next.Translations -> String
 momentPlural translations =
     I18Next.tf translations "moment_plural"
+
+
+newMoment : List I18Next.Translations -> String
+newMoment translations =
+    I18Next.tf translations "newMoment"
 
 
 settings : List I18Next.Translations -> String

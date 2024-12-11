@@ -521,15 +521,10 @@ sectionsUp box { x, y } =
                     findGroupAtPosition lineInt box
                         |> Maybe.map .id
             in
-            case maybe of
-                Just gid ->
-                    ( { box | interaction = mouseOverInteraction box x y }
-                    , CreateSection gid start end
-                    , Cmd.none
-                    )
-
-                Nothing ->
-                    noAction { box | interaction = mouseOverInteraction box x y }
+            ( { box | interaction = mouseOverInteraction box x y }
+            , CreateSection maybe start end
+            , Cmd.none
+            )
 
         _ ->
             noAction { box | interaction = mouseOverInteraction box x y }

@@ -50,18 +50,24 @@ type Msg
         , height : Int
         }
     | OptionsBounceMsg
-    | ChangeText String String
-    | ValidateText String String
-    | CancelChange String
+    | ChangeText View String String
+    | ValidateText View String String
+    | CancelChange View String
+    | SelectMsg View String (Select.Msg Field.ChoiceId)
     | FocusField String
+    | CreateNew
     | NoOp
-    | SelectMsg String (Select.Msg Field.ChoiceId)
     | CloseError Int
     | AddError String
     | GotHelp (Result Http.Error String)
     | GotTranslations (Result Http.Error I18Next.Translations)
     | ShowModal Modal
     | UpdateDirection Direction
+
+
+type View
+    = Inspector
+    | NewMoment
 
 
 type alias Model =
@@ -74,6 +80,7 @@ type alias Model =
         }
     , bounce : Bounce
     , fields : Dict String ( Field, FieldState )
+    , groupsField : Dict String ( Field, FieldState )
     , focus : String
     , options : Options
     , records : Dict String Record
@@ -90,6 +97,7 @@ type Modal
     = None
     | Help
     | Settings
+    | New
 
 
 main : Program Value Model Msg
@@ -127,6 +135,7 @@ main =
                         }
                   , bounce = Bounce.init
                   , fields = Dict.empty
+                  , groupsField = Dict.empty
                   , options = Options 0 0 0 38 Horizontal
                   , records = Dict.empty
                   , selectStates = Dict.empty
@@ -205,15 +214,15 @@ view model =
             Html.text ""
 
           else
-            inspectorView model
+            inspectorView model model.fields
         , case model.showModal of
             Help ->
                 Html.div
-                    [ HA.class "modal"
+                    [ HA.class "modal-background"
                     , Html.Events.onClick (ShowModal None)
                     ]
                     [ Html.div
-                        [ HA.class "help" ]
+                        [ HA.class "modal help" ]
                         [ Html.button [ HA.class "close-button", Html.Events.onClick (ShowModal None) ]
                             [ Phosphor.x Bold
                                 |> Phosphor.withSize 14
@@ -227,12 +236,12 @@ view model =
             Settings ->
                 Html.div []
                     [ Html.div
-                        [ HA.class "modal"
+                        [ HA.class "modal-background"
                         , Html.Events.onClick (ShowModal None)
                         ]
                         []
                     , Html.div
-                        [ HA.class "settings" ]
+                        [ HA.class "modal settings" ]
                         [ Html.button [ HA.class "close-button", Html.Events.onClick (ShowModal None) ]
                             [ Phosphor.x Bold
                                 |> Phosphor.withSize 14
@@ -251,6 +260,30 @@ view model =
 
             None ->
                 Html.text ""
+
+            New ->
+                Html.div
+                    [ HA.style "display" "flex"
+                    , HA.style "justify-content" "center"
+                    ]
+                    [ Html.div
+                        [ HA.class "modal-background"
+                        , Html.Events.onClick (ShowModal None)
+                        ]
+                        []
+                    , Html.div
+                        [ HA.class "modal create-new" ]
+                        [ Html.button [ HA.class "close-button", Html.Events.onClick (ShowModal None) ]
+                            [ Phosphor.x Bold
+                                |> Phosphor.withSize 14
+                                |> Phosphor.withSizeUnit "px"
+                                |> Phosphor.toHtml [ HA.style "vertical-align" "sub" ]
+                            ]
+                        , Html.h1 [] [ Html.text (T.newMoment model.translations) ]
+                        , fieldsView NewMoment model model.groupsField
+                        , Html.button [ Html.Events.onClick CreateNew ] [ Html.text (T.create model.translations) ]
+                        ]
+                    ]
         , if List.isEmpty model.error then
             Html.text ""
 
@@ -287,8 +320,30 @@ languageFromFlags flags =
             "en"
 
 
-inspectorView : Model -> Html.Html Msg
-inspectorView ({ translations } as model) =
+inspectorView : Model -> Dict String ( Field, FieldState ) -> Html.Html Msg
+inspectorView model =
+    fieldsView Inspector model
+        >> List.singleton
+        >> Html.div
+            [ HA.style "position" "absolute"
+            , HA.style "right" "0px"
+            , HA.style "top" "0px"
+            , HA.style "width" "200px"
+            , HA.style "height" ((model.box.height |> String.fromInt) ++ "px")
+            , HA.style "background-color" "#f7f7f7"
+            , HA.style "font-family" "Arial, Helvetica, sans-serif"
+            , HA.style "font-size" "12px"
+            , HA.style "overflow-y" "scroll"
+            , HA.style "z-index" "2"
+
+            -- , HA.style "box-shadow" "grey 1px 0px 14px"
+            , HA.style "border-left" "1px solid #DDD"
+            , HA.style "padding" "10px"
+            ]
+
+
+fieldsView : View -> Model -> Dict String ( Field, FieldState ) -> Html.Html Msg
+fieldsView v ({ translations } as model) fields =
     let
         selSize =
             Timeline.Models.selectionSize model.timelineState.selection
@@ -316,9 +371,20 @@ inspectorView ({ translations } as model) =
                     Just selectState ->
                         let
                             selectedItem =
-                                -- Maybe.map (\str -> Select.basicMenuItem { item = str, label = str }) field.str
-                                Maybe.andThen (\str -> ListX.find (\c -> c.label == str) choices) field.str
-                                    |> Maybe.map (\c -> Select.basicMenuItem { item = c.id, label = c.label })
+                                Maybe.andThen Field.stringToChoiceId field.str
+                                    |> Maybe.map
+                                        (\choiceid ->
+                                            let
+                                                lbl =
+                                                    ListX.find (\c -> c.id == choiceid) choices
+                                                        |> Maybe.map .label
+                                                        |> Maybe.withDefault (Field.choiceIdToString choiceid)
+                                            in
+                                            Select.basicMenuItem { item = choiceid, label = lbl }
+                                        )
+
+                            -- Maybe.andThen (\str -> ListX.find (\c -> c.label == str) choices) field.str
+                            -- |> Maybe.map (\c -> Select.basicMenuItem { item = c.id, label = c.label })
                         in
                         Select.view
                             (Select.single selectedItem
@@ -354,203 +420,196 @@ inspectorView ({ translations } as model) =
                                 |> Select.clearable True
                             )
                             |> Styled.toUnstyled
-                            |> Html.map (SelectMsg field.name)
+                            |> Html.map (SelectMsg v field.name)
 
                     Nothing ->
                         Html.text ""
     in
-    [ (if selSize > 1 then
-        String.fromInt selSize ++ " " ++ T.momentPlural translations
+    (if v == Inspector then
+        [ (if selSize > 1 then
+            String.fromInt selSize ++ " " ++ T.momentPlural translations
 
-       else
-        String.fromInt selSize ++ " " ++ T.moment translations
-      )
-        |> Html.text
-        |> List.singleton
-        |> Html.div []
-    , T.cumulativeDuration translations
-        ++ ((cumul * 10 / 24 |> round |> toFloat) / 10 |> String.fromFloat)
-        ++ " "
-        ++ T.daysShort translations
-        ++ " / "
-        ++ (cumul |> String.fromFloat)
-        ++ " "
-        ++ T.hoursShort translations
-        |> Html.text
-        |> List.singleton
-        |> Html.div []
-    , T.timeRange translations
-        ++ String.fromFloat ((amplitude * 10 / 24 |> round |> toFloat) / 10)
-        ++ " "
-        ++ T.daysShort translations
-        ++ " / "
-        ++ String.fromFloat amplitude
-        ++ " "
-        ++ T.hoursShort translations
-        |> Html.text
-        |> List.singleton
-        |> Html.div []
-    , model.fields
-        |> Dict.toList
-        |> List.sortBy (\( _, ( f, _ ) ) -> f.position)
-        |> List.map
-            (\( key, ( field, value ) ) ->
-                case value of
-                    Val str ->
-                        { field = field, name = key, label = field.label, str = Just str, multi = False, error = Nothing }
+           else
+            String.fromInt selSize ++ " " ++ T.moment translations
+          )
+            |> Html.text
+            |> List.singleton
+            |> Html.div []
+        , T.cumulativeDuration translations
+            ++ ((cumul * 10 / 24 |> round |> toFloat) / 10 |> String.fromFloat)
+            ++ " "
+            ++ T.daysShort translations
+            ++ " / "
+            ++ (cumul |> String.fromFloat)
+            ++ " "
+            ++ T.hoursShort translations
+            |> Html.text
+            |> List.singleton
+            |> Html.div []
+        , T.timeRange translations
+            ++ String.fromFloat ((amplitude * 10 / 24 |> round |> toFloat) / 10)
+            ++ " "
+            ++ T.daysShort translations
+            ++ " / "
+            ++ String.fromFloat amplitude
+            ++ " "
+            ++ T.hoursShort translations
+            |> Html.text
+            |> List.singleton
+            |> Html.div []
+        ]
 
-                    Multi ->
-                        { field = field, name = key, label = field.label, str = Nothing, multi = True, error = Nothing }
+     else
+        []
+    )
+        ++ [ fields
+                |> Dict.toList
+                |> List.sortBy (\( _, ( f, _ ) ) -> f.position)
+                |> List.map
+                    (\( key, ( field, value ) ) ->
+                        case value of
+                            Val str ->
+                                { field = field, name = key, label = field.label, str = Just str, multi = False, error = Nothing }
 
-                    _ ->
-                        { field = field, name = key, label = field.label, str = Nothing, multi = False, error = Just "Erreur" }
-            )
-        |> List.map
-            (\field ->
-                Html.div [ HA.class "field" ]
-                    [ Html.label [ HA.for field.name ] [ Html.text field.label ]
-                    , case field.field.ofType of
-                        Field.Choice choices ->
-                            drawChoices field choices
+                            Multi ->
+                                { field = field, name = key, label = field.label, str = Nothing, multi = True, error = Nothing }
 
-                        Field.Ref choices ->
-                            drawChoices field choices
+                            _ ->
+                                { field = field, name = key, label = field.label, str = Nothing, multi = False, error = Just "Erreur" }
+                    )
+                |> List.map
+                    (\field ->
+                        Html.div [ HA.class "field" ]
+                            [ Html.label [ HA.for field.name ] [ Html.text field.label ]
+                            , case field.field.ofType of
+                                Field.Choice choices ->
+                                    drawChoices field choices
 
-                        Field.Text True ->
-                            Html.textarea
-                                [ HA.name field.name
-                                , HA.id field.name
-                                , HA.rows 4
-                                , HA.cols 18
-                                , HA.placeholder
-                                    (if field.multi then
-                                        "<multiple>"
+                                Field.Ref choices ->
+                                    drawChoices field choices
 
-                                     else
-                                        ""
-                                    )
-                                , Html.Events.onInput (ChangeText field.name)
-                                , Html.Events.on "keyup" <|
-                                    Decode.andThen
-                                        (\key ->
-                                            case ( key, field.str ) of
-                                                ( 27, _ ) ->
-                                                    Decode.succeed (CancelChange field.name)
+                                Field.Text True ->
+                                    Html.textarea
+                                        [ HA.name field.name
+                                        , HA.id field.name
+                                        , HA.rows 4
+                                        , HA.cols 18
+                                        , HA.placeholder
+                                            (if field.multi then
+                                                "<multiple>"
 
-                                                _ ->
-                                                    Decode.fail ""
-                                        )
-                                        Html.Events.keyCode
-                                , Html.Events.onFocus (FocusField field.name)
-                                , if field.name == model.focus then
-                                    Html.Events.onBlur
-                                        (case field.str of
-                                            Just str ->
-                                                ValidateText field.name str
-
-                                            Nothing ->
-                                                NoOp
-                                        )
-
-                                  else
-                                    HA.class ""
-                                ]
-                                [ Html.text <| Maybe.withDefault "" field.str ]
-
-                        _ ->
-                            Html.input
-                                [ HA.name field.name
-                                , HA.id field.name
-                                , HA.placeholder
-                                    (if field.multi then
-                                        "<multiple>"
-
-                                     else
-                                        ""
-                                    )
-                                , HA.property "indeterminate" (Encode.bool field.multi)
-                                , HA.type_
-                                    (case field.field.ofType of
-                                        Field.DateTime ->
-                                            "datetime-local"
-
-                                        Field.Bool ->
-                                            "checkbox"
-
-                                        _ ->
-                                            "text"
-                                    )
-                                , if field.field.ofType == Field.Bool then
-                                    HA.checked (Maybe.map ((==) "true") field.str |> Maybe.withDefault False)
-
-                                  else
-                                    HA.value <| Maybe.withDefault "" field.str
-                                , if field.field.ofType == Field.Bool then
-                                    Html.Events.onClick
-                                        (ChangeText field.name
-                                            (Maybe.map
-                                                (\b ->
-                                                    if b == "true" then
-                                                        "false"
-
-                                                    else
-                                                        "true"
-                                                )
-                                                field.str
-                                                |> Maybe.withDefault "true"
+                                             else
+                                                ""
                                             )
-                                        )
+                                        , Html.Events.onInput (ChangeText v field.name)
+                                        , Html.Events.on "keyup" <|
+                                            Decode.andThen
+                                                (\key ->
+                                                    case ( key, field.str ) of
+                                                        ( 27, _ ) ->
+                                                            Decode.succeed (CancelChange v field.name)
 
-                                  else
-                                    Html.Events.onInput (ChangeText field.name)
-                                , Html.Events.on "keyup" <|
-                                    Decode.andThen
-                                        (\key ->
-                                            case ( key, field.str ) of
-                                                ( 27, _ ) ->
-                                                    Decode.succeed (CancelChange field.name)
+                                                        _ ->
+                                                            Decode.fail ""
+                                                )
+                                                Html.Events.keyCode
+                                        , Html.Events.onFocus (FocusField field.name)
+                                        , if field.name == model.focus then
+                                            Html.Events.onBlur
+                                                (case field.str of
+                                                    Just str ->
+                                                        ValidateText v field.name str
 
-                                                ( 13, Just str ) ->
-                                                    Decode.succeed (ValidateText field.name str)
+                                                    Nothing ->
+                                                        NoOp
+                                                )
+
+                                          else
+                                            HA.class ""
+                                        ]
+                                        [ Html.text <| Maybe.withDefault "" field.str ]
+
+                                _ ->
+                                    Html.input
+                                        [ HA.name field.name
+                                        , HA.id field.name
+                                        , HA.placeholder
+                                            (if field.multi then
+                                                "<multiple>"
+
+                                             else
+                                                ""
+                                            )
+                                        , HA.property "indeterminate" (Encode.bool field.multi)
+                                        , HA.type_
+                                            (case field.field.ofType of
+                                                Field.DateTime ->
+                                                    "datetime-local"
+
+                                                Field.Bool ->
+                                                    "checkbox"
 
                                                 _ ->
-                                                    Decode.fail ""
-                                        )
-                                        Html.Events.keyCode
-                                , Html.Events.onFocus (FocusField field.name)
-                                , if field.name == model.focus then
-                                    Html.Events.onBlur
-                                        (case field.str of
-                                            Just str ->
-                                                ValidateText field.name str
+                                                    "text"
+                                            )
+                                        , if field.field.ofType == Field.Bool then
+                                            HA.checked (Maybe.map ((==) "true") field.str |> Maybe.withDefault False)
 
-                                            Nothing ->
-                                                NoOp
-                                        )
+                                          else
+                                            HA.value <| Maybe.withDefault "" field.str
+                                        , if field.field.ofType == Field.Bool then
+                                            Html.Events.onClick
+                                                (ChangeText v
+                                                    field.name
+                                                    (Maybe.map
+                                                        (\b ->
+                                                            if b == "true" then
+                                                                "false"
 
-                                  else
-                                    HA.class ""
-                                ]
-                                []
-                    ]
-            )
+                                                            else
+                                                                "true"
+                                                        )
+                                                        field.str
+                                                        |> Maybe.withDefault "true"
+                                                    )
+                                                )
+
+                                          else
+                                            Html.Events.onInput (ChangeText v field.name)
+                                        , Html.Events.on "keyup" <|
+                                            Decode.andThen
+                                                (\key ->
+                                                    case ( key, field.str ) of
+                                                        ( 27, _ ) ->
+                                                            Decode.succeed (CancelChange v field.name)
+
+                                                        ( 13, Just str ) ->
+                                                            Decode.succeed (ValidateText v field.name str)
+
+                                                        _ ->
+                                                            Decode.fail ""
+                                                )
+                                                Html.Events.keyCode
+                                        , Html.Events.onFocus (FocusField field.name)
+                                        , if field.name == model.focus then
+                                            Html.Events.onBlur
+                                                (case field.str of
+                                                    Just str ->
+                                                        ValidateText v field.name str
+
+                                                    Nothing ->
+                                                        NoOp
+                                                )
+
+                                          else
+                                            HA.class ""
+                                        ]
+                                        []
+                            ]
+                    )
+                |> Html.div []
+           ]
         |> Html.div []
-    ]
-        |> Html.div
-            [ HA.style "position" "absolute"
-            , HA.style "right" "0px"
-            , HA.style "top" "0px"
-            , HA.style "width" "200px"
-            , HA.style "height" ((model.box.height |> String.fromInt) ++ "px")
-            , HA.style "background-color" "#f7f7f7"
-            , HA.style "font-family" "Arial, Helvetica, sans-serif"
-            , HA.style "font-size" "12px"
-            , HA.style "overflow-y" "scroll"
-
-            -- , HA.style "box-shadow" "grey 1px 0px 14px"
-            , HA.style "border-left" "1px solid #DDD"
-            , HA.style "padding" "10px"
-            ]
 
 
 sizeToMsg : Int -> Int -> Msg
@@ -623,42 +682,84 @@ update msg model =
         OptionsBounceMsg ->
             ( model, encodeOptions model.options |> updateOptions )
 
-        ChangeText field str ->
-            ( { model | fields = Dict.update field (Maybe.map (\( f, _ ) -> ( f, Val str ))) model.fields }
+        ChangeText v field str ->
+            ( case v of
+                Inspector ->
+                    { model | fields = Dict.update field (Maybe.map (\( f, _ ) -> ( f, Val str ))) model.fields }
+
+                NewMoment ->
+                    { model | groupsField = Dict.update field (Maybe.map (\( f, _ ) -> ( f, Val str ))) model.groupsField }
             , Cmd.none
             )
 
-        ValidateText field str ->
-            ( { model
-                | focus =
-                    if model.focus == field then
-                        ""
+        ValidateText v field str ->
+            case v of
+                Inspector ->
+                    ( { model
+                        | focus =
+                            if model.focus == field then
+                                ""
 
-                    else
-                        model.focus
-              }
-            , makeFieldUpdate model field str
-            )
+                            else
+                                model.focus
+                      }
+                    , makeFieldUpdate model field str
+                    )
 
-        CancelChange field ->
-            let
-                upd =
-                    Dict.update field
-                        (Maybe.andThen
-                            (\v ->
-                                Dict.singleton field v
-                                    |> fieldsFromSelection model.timelineState.zone model.translations model.timelineState.selection model.records
-                                    |> Dict.get field
-                            )
-                        )
-                        model.fields
-            in
-            ( { model | fields = upd, focus = "" }, Browser.Dom.blur field |> Task.attempt (always NoOp) )
+                NewMoment ->
+                    ( { model
+                        | focus =
+                            if model.focus == field then
+                                ""
+
+                            else
+                                model.focus
+                        , groupsField = updateGroupsField model.timelineState.zone model.translations field str model.groupsField
+                      }
+                    , Cmd.none
+                    )
+
+        CreateNew ->
+            case validateNewMoment model.timelineState.zone model.groupsField of
+                Just cmd ->
+                    ( { model | showModal = None }, cmd )
+
+                Nothing ->
+                    ( model, Cmd.none )
+
+        CancelChange v field ->
+            case v of
+                Inspector ->
+                    let
+                        upd =
+                            Dict.update field
+                                (Maybe.andThen
+                                    (\val ->
+                                        Dict.singleton field val
+                                            |> fieldsFromSelection model.timelineState.zone model.translations model.timelineState.selection model.records
+                                            |> Dict.get field
+                                    )
+                                )
+                                model.fields
+                    in
+                    ( { model | fields = upd, focus = "" }, Browser.Dom.blur field |> Task.attempt (always NoOp) )
+
+                NewMoment ->
+                    ( { model | focus = "" }, Browser.Dom.blur field |> Task.attempt (always NoOp) )
 
         NoOp ->
             ( model, Cmd.none )
 
-        SelectMsg field selectMsg ->
+        SelectMsg v field selectMsg ->
+            let
+                fields =
+                    case v of
+                        Inspector ->
+                            model.fields
+
+                        NewMoment ->
+                            model.groupsField
+            in
             case Dict.get field model.selectStates of
                 Just selectState ->
                     let
@@ -668,41 +769,61 @@ update msg model =
                         ( newDict, updMsg ) =
                             case maybeAction of
                                 Just (Select.Select item) ->
-                                    ( Dict.get field model.fields
-                                        |> Maybe.andThen
-                                            (\( f, _ ) ->
-                                                case f.ofType of
-                                                    Field.Choice choices ->
-                                                        ListX.find (\c -> c.id == item) choices
-
-                                                    Field.Ref choices ->
-                                                        ListX.find (\c -> c.id == item) choices
-
-                                                    _ ->
-                                                        Nothing
-                                            )
-                                        |> Maybe.map
-                                            (\choice ->
-                                                Dict.update field (Maybe.map <| \( f, _ ) -> ( f, Val choice.label )) model.fields
-                                            )
-                                        |> Maybe.withDefault model.fields
+                                    ( Dict.update field (Maybe.map <| \( f, _ ) -> ( f, Val (Field.choiceIdToString item) )) fields
+                                      -- Dict.get field fields
+                                      -- |> Maybe.andThen
+                                      --     (\( f, _ ) ->
+                                      --         case f.ofType of
+                                      --             Field.Choice choices ->
+                                      --                 ListX.find (\c -> c.id == item) choices
+                                      --             Field.Ref choices ->
+                                      --                 ListX.find (\c -> c.id == item) choices
+                                      --             _ ->
+                                      --                 Nothing
+                                      --     )
+                                      -- |> Maybe.map
+                                      --     (\choice ->
+                                      --         Dict.update field (Maybe.map <| \( f, _ ) -> ( f, Val choice.label )) fields
+                                      --     )
+                                      -- |> Maybe.withDefault fields
                                     , makeFieldUpdate_ model.timelineState.selection field (Field.encodeChoiceId item)
                                     )
 
                                 Just Select.Clear ->
-                                    ( Dict.empty
-                                    , makeFieldUpdate_ model.timelineState.selection field (Encode.string "")
-                                    )
+                                    case v of
+                                        Inspector ->
+                                            ( fields
+                                            , makeFieldUpdate_ model.timelineState.selection field (Encode.string "")
+                                            )
+
+                                        NewMoment ->
+                                            ( Dict.update field (Maybe.map <| \( f, _ ) -> ( f, Error NoValue "" )) fields
+                                            , Cmd.none
+                                            )
 
                                 _ ->
-                                    ( model.fields, Cmd.none )
+                                    ( fields, Cmd.none )
                     in
-                    ( { model
-                        | selectStates = Dict.insert field updatedSelectState model.selectStates
-                        , fields = newDict
-                      }
-                    , Cmd.batch [ updMsg, Cmd.map (SelectMsg field) selectCmds ]
-                    )
+                    case v of
+                        Inspector ->
+                            ( { model
+                                | selectStates = Dict.insert field updatedSelectState model.selectStates
+                                , fields = newDict
+                              }
+                            , Cmd.batch [ updMsg, Cmd.map (SelectMsg v field) selectCmds ]
+                            )
+
+                        NewMoment ->
+                            let
+                                _ =
+                                    Dict.get groupFieldId newDict |> Maybe.map Tuple.second
+                            in
+                            ( { model
+                                | selectStates = Dict.insert field updatedSelectState model.selectStates
+                                , groupsField = newDict
+                              }
+                            , Cmd.map (SelectMsg v field) selectCmds
+                            )
 
                 Nothing ->
                     ( model, Cmd.none )
@@ -807,17 +928,22 @@ timelineUpdate tmsg model =
                         , sousGroupeId = g.sousGroupeId |> Maybe.withDefault ""
                         }
 
-                Timeline.Action.CreateSection gid from to ->
-                    let
-                        g =
-                            unwrapGroupeId gid
-                    in
-                    createRecord <|
-                        { groupeId = g.groupeId
-                        , sousGroupeId = g.sousGroupeId |> Maybe.withDefault ""
-                        , date = Iso8601.toDateTimeString model.timelineState.zone from
-                        , duree = (Moment.durationBetween from to |> Moment.fromDuration) // 1000
-                        }
+                Timeline.Action.CreateSection maybe from to ->
+                    case maybe of
+                        Just gid ->
+                            let
+                                g =
+                                    unwrapGroupeId gid
+                            in
+                            createRecord <|
+                                { groupeId = g.groupeId
+                                , sousGroupeId = g.sousGroupeId |> Maybe.withDefault ""
+                                , date = Iso8601.toDateTimeString model.timelineState.zone from
+                                , duree = (Moment.durationBetween from to |> Moment.fromDuration) // 1000
+                                }
+
+                        Nothing ->
+                            Cmd.none
 
                 Timeline.Action.ChangeZoom _ ->
                     Bounce.delay 500 OptionsBounceMsg
@@ -852,6 +978,14 @@ timelineUpdate tmsg model =
 
                     _ ->
                         Cmd.none
+
+        ( modal, groupsField ) =
+            case action of
+                Timeline.Action.CreateSection Nothing start end ->
+                    ( New, fieldsFromDates model.timelineState.zone model.translations start end model.groupsField )
+
+                _ ->
+                    ( model.showModal, model.groupsField )
     in
     ( { model
         | timelineState =
@@ -884,6 +1018,8 @@ timelineUpdate tmsg model =
 
                 _ ->
                     model.fields
+        , groupsField = groupsField
+        , showModal = modal
         , showInspector =
             if model.showInspector then
                 not <| Timeline.Models.selectionIsEmpty state.selection
@@ -911,7 +1047,7 @@ receiveData data model =
         Err err ->
             ( addError (Decode.errorToString err) model, Cmd.none )
 
-        Ok { records, maybeSelection, editable } ->
+        Ok { records, maybeSelection, editable, group, subgroup } ->
             let
                 groups =
                     records
@@ -949,6 +1085,12 @@ receiveData data model =
 
                 recs =
                     List.map (\r -> ( String.fromInt r.id, r )) records |> Dict.fromList
+
+                groupsFiltered =
+                    List.filterMap identity
+                        [ Maybe.map (\g -> { g | id = groupFieldId }) group
+                        , Maybe.map (\s -> { s | id = subgroupFieldId }) subgroup
+                        ]
             in
             ( { model
                 | timelineState =
@@ -963,6 +1105,10 @@ receiveData data model =
                     List.indexedMap (\pos field -> ( field.id, ( { field | position = pos }, Error NoSelection "" ) )) editable
                         |> Dict.fromList
                         |> fieldsFromSelection model.timelineState.zone model.translations newtl.selection recs
+                , groupsField =
+                    groupsFiltered
+                        |> List.indexedMap (\pos field -> ( field.id, ( { field | position = pos }, Error NoSelection "" ) ))
+                        |> Dict.fromList
                 , selectStates =
                     List.filterMap
                         (\field ->
@@ -976,7 +1122,7 @@ receiveData data model =
                                 _ ->
                                     Nothing
                         )
-                        editable
+                        (groupsFiltered ++ editable)
                         |> Dict.fromList
               }
             , Cmd.none
@@ -1068,6 +1214,130 @@ makeFieldUpdate_ sel field value =
         , ( "value", value )
         ]
         |> updateField
+
+
+fieldsFromDates : Time.Zone -> List I18Next.Translations -> Time.Posix -> Time.Posix -> Dict String ( Field, FieldState ) -> Dict String ( Field, FieldState )
+fieldsFromDates zone trans debut fin fields =
+    let
+        debutVal =
+            debut |> Iso8601.toDateTimeString zone |> Val
+
+        finVal =
+            fin |> Iso8601.toDateTimeString zone |> Val
+
+        dureeVal =
+            Val (String.fromFloat (toFloat (Moment.durationBetween debut fin |> Moment.fromDuration) / 3600000))
+    in
+    fields
+        |> Dict.insert debutFieldId ( debutField trans, debutVal )
+        |> Dict.insert finFieldId ( finField trans, finVal )
+        |> Dict.insert dureeFieldId ( dureeField trans, dureeVal )
+
+
+fieldStateToMaybe fs =
+    case fs of
+        Val str ->
+            Just str
+
+        _ ->
+            Nothing
+
+
+updateGroupsField : Time.Zone -> List I18Next.Translations -> String -> String -> Dict String ( Field, FieldState ) -> Dict String ( Field, FieldState )
+updateGroupsField zone trans field str fields =
+    let
+        resdebut =
+            Dict.get debutFieldId fields
+                |> Maybe.andThen (Tuple.second >> fieldStateToMaybe)
+                |> Maybe.andThen (\s -> Decode.decodeString DecodeX.datetime ("\"" ++ s ++ "\"") |> Result.toMaybe)
+
+        resfin =
+            Dict.get finFieldId fields
+                |> Maybe.andThen (Tuple.second >> fieldStateToMaybe)
+                |> Maybe.andThen (\s -> Decode.decodeString DecodeX.datetime ("\"" ++ s ++ "\"") |> Result.toMaybe)
+    in
+    if field == debutFieldId then
+        case ( Decode.decodeString DecodeX.datetime ("\"" ++ str ++ "\""), resfin ) of
+            ( Ok debut, Just fin ) ->
+                let
+                    dureeVal =
+                        Val (String.fromFloat (toFloat (Moment.durationBetween debut fin |> Moment.fromDuration) / 3600000))
+                in
+                Dict.insert dureeFieldId ( dureeField trans, dureeVal ) fields
+
+            _ ->
+                fields
+
+    else if field == finFieldId then
+        case ( resdebut, Decode.decodeString DecodeX.datetime ("\"" ++ str ++ "\"") ) of
+            ( Just debut, Ok fin ) ->
+                let
+                    dureeVal =
+                        Val (String.fromFloat (toFloat (Moment.durationBetween debut fin |> Moment.fromDuration) / 3600000))
+                in
+                Dict.insert dureeFieldId ( dureeField trans, dureeVal ) fields
+
+            _ ->
+                fields
+
+    else if field == dureeFieldId then
+        case ( resdebut, String.toFloat str ) of
+            ( Just debut, Just duree ) ->
+                let
+                    finVal =
+                        Time.posixToMillis debut + (duree * 3600000 |> round) |> Time.millisToPosix |> Iso8601.toDateTimeString zone |> Val
+                in
+                Dict.insert finFieldId ( finField trans, finVal ) fields
+
+            _ ->
+                fields
+
+    else
+        fields
+
+
+validateNewMoment : Time.Zone -> Dict String ( Field, FieldState ) -> Maybe (Cmd Msg)
+validateNewMoment zone fields =
+    let
+        mbdebut =
+            Dict.get debutFieldId fields
+                |> Maybe.andThen (Tuple.second >> fieldStateToMaybe)
+                |> Maybe.andThen (\s -> Decode.decodeString DecodeX.datetime ("\"" ++ s ++ "\"") |> Result.toMaybe)
+
+        mbduree =
+            Dict.get dureeFieldId fields
+                |> Maybe.andThen (Tuple.second >> fieldStateToMaybe)
+                |> Maybe.andThen String.toFloat
+
+        mbgroup =
+            Dict.get groupFieldId fields
+                |> Maybe.andThen (Tuple.second >> fieldStateToMaybe)
+                |> Maybe.andThen Field.stringToChoiceId
+                |> Maybe.map Field.choiceIdToRawString
+
+        mbsubgroup =
+            Dict.get subgroupFieldId fields
+                |> Maybe.andThen (Tuple.second >> fieldStateToMaybe)
+                |> Maybe.andThen Field.stringToChoiceId
+                |> Maybe.map Field.choiceIdToRawString
+    in
+    case ( mbgroup, mbdebut, mbduree ) of
+        ( Just group, Just debut, Just duree ) ->
+            let
+                args =
+                    { groupeId = group
+                    , sousGroupeId = mbsubgroup |> Maybe.withDefault ""
+
+                    -- , date = Iso8601.toDateTimeString model.timelineState.zone from
+                    , date = Iso8601.toDateTimeString zone debut
+                    , duree = duree * 3600 |> round
+                    }
+            in
+            Just (createRecord args)
+
+        -- Just Cmd.none
+        _ ->
+            Nothing
 
 
 fieldsFromSelection : Time.Zone -> List I18Next.Translations -> Timeline.Models.Selection -> Dict String Record -> Dict String ( Field, FieldState ) -> Dict String ( Field, FieldState )
@@ -1305,6 +1575,14 @@ type alias Record =
     }
 
 
+groupFieldId =
+    "_timeline_Group"
+
+
+subgroupFieldId =
+    "_timeline_Subgroup"
+
+
 debutFieldId =
     "_timeline_Debut"
 
@@ -1315,6 +1593,7 @@ debutField trans =
     , position = -10
     , ofType = Field.DateTime
     , values = Field.ListInt []
+    , isFormula = False
     }
 
 
@@ -1328,6 +1607,7 @@ finField trans =
     , position = -10
     , ofType = Field.DateTime
     , values = Field.ListInt []
+    , isFormula = False
     }
 
 
@@ -1341,6 +1621,7 @@ dureeField trans =
     , position = -5
     , ofType = Field.Float Field.Standard False 0 2
     , values = Field.ListFloat []
+    , isFormula = False
     }
 
 
@@ -1368,17 +1649,19 @@ type Error
 
 
 type alias ReceiveData =
-    { records : List Record, maybeSelection : Maybe (List Int), editable : List Field }
+    { records : List Record, maybeSelection : Maybe (List Int), editable : List Field, group : Maybe Field, subgroup : Maybe Field }
 
 
 receiveDecoder : Decoder ReceiveData
 receiveDecoder =
-    Decode.map3 ReceiveData
+    Decode.map5 ReceiveData
         (Decode.field "rows" <| Decode.list recordDecoder)
         (Decode.maybe <| Decode.field "selection" (Decode.list (Decode.field "id" Decode.int)))
         (Decode.field "editable"
             (Decode.list (Field.decoder defaultChoice))
         )
+        (Decode.field "group" (Decode.maybe (Field.decoder defaultChoice)))
+        (Decode.field "subgroup" (Decode.maybe (Field.decoder defaultChoice)))
 
 
 recordDecoder : Decoder Record
@@ -1522,49 +1805,23 @@ body {
 
 }
 
-.modal {
+.modal-background {
     position: absolute;
     left: 0;
     top: 0;
     width: 100%;
     height: 100%;
     background-color: rgba(0,0,0,.2);
+    
 }
 
-.help {
+.modal {
     position: absolute;
-    top: 10px;
+    top: 20px;
     background-color: white;
+    padding: 10px 30px 30px 30px;
     max-width: 80%;
     max-height: 90%;
-    padding: 10px 30px;
-    left: 40px;
-    font-family: sans-serif;
-    font-size: 14px;
-    box-shadow: 0px 10px 24px 0px rgba(0,0,0,0.34);
-
-    h1 {
-        font-size: 20px;
-    }
-
-    h2 {
-        font-size: 16px;
-    }
-}
-
-.help div {
-    height: 100%;
-    overflow: auto;
-}
-
-.settings {
-    position: absolute;
-    top: 10px;
-    background-color: white;
-    max-width: 80%;
-    max-height: 90%;
-    padding: 10px 30px 20px 30px;
-    left: 68px;
     font-family: sans-serif;
     font-size: 14px;
     box-shadow: 0px 10px 24px 0px rgba(0,0,0,0.34);
@@ -1582,6 +1839,27 @@ body {
         font-size: 10px;
         color: #262626;
         display: block;
+    }
+}
+
+.help {
+    left: 40px;
+    
+}
+
+.help div {
+    height: 100%;
+    overflow: auto;
+}
+
+.settings {
+    padding: 10px 30px 20px 30px;
+    left: 68px;
+}
+
+.create-new {
+    > button {
+        margin-top: 15px;
     }
 }
 

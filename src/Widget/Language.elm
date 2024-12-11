@@ -11,6 +11,7 @@ defaultLanguage =
                 [ ( "color", I18Next.string "Color" )
                 , ( "comment", I18Next.string "Comment" )
                 , ( "content", I18Next.string "Content" )
+                , ( "create", I18Next.string "Create" )
                 , ( "cumulativeDuration"
                   , I18Next.string "Cumulative duration: "
                   )
@@ -23,6 +24,7 @@ defaultLanguage =
                 , ( "hoursShort", I18Next.string "h" )
                 , ( "moment", I18Next.string "moment" )
                 , ( "moment_plural", I18Next.string "moments" )
+                , ( "newMoment", I18Next.string "New moment" )
                 , ( "settings", I18Next.string "Settings" )
                 , ( "startDate", I18Next.string "Start date" )
                 , ( "subgroupBy", I18Next.string "Then group by" )

@@ -569,33 +569,22 @@ window.addEventListener('load', async (event) => {
       const editableTypes_ = mappings.fields.map(m => colMeta.find(cm => cm.colId === m && cm.isFormula === false))
         .filter(v => v !== undefined)
       const editableTypes = await Promise.all(
-        editableTypes_.map(async f => {
-
-          if (f.type.startsWith("Ref:")) {
-            try {
-              const table = await grist.docApi.fetchTable(f.type.substring(4));
-              const columns = await grist.docApi.fetchTable('_grist_Tables_column');
-              const index = columns.id.indexOf(f.visibleCol);
-              // console.log("TABLE", table);
-              // console.log("COLS", columns, f.visibleCol, index);
-
-              if (index > -1) {
-                col = columns.colId[index];
-                f.references = table.id.map((id, idx) => ({ id, label: table[col][idx] }));
-              }
-              return f;
-
-            } catch (err) {
-              console.log("ERRORERROR", err);
-              return f;
-            }
-
-          } else
-            return f;
-        }));
+        editableTypes_.map(populate));
       console.log("EDITABLE", editableTypes);
-      setRecordsArgs = { rows: data, editable: editableTypes };
-      app.ports.setRecords.send(newSelection ? { rows: data, selection: newSelection, editable: editableTypes } : { rows: data, editable: editableTypes });
+
+
+      let groupeType = colMeta.find(cm => cm.colId === mappings.groupe && cm.isFormula === false);
+      let sousGroupeType = colMeta.find(cm => cm.colId === mappings.sousGroupe && cm.isFormula === false);
+
+      if (groupeType)
+        groupeType = await populate(groupeType);
+      if (sousGroupeType)
+        sousGroupeType = await populate(sousGroupeType);
+
+
+      setRecordsArgs = { rows: data, editable: editableTypes, group: groupeType, subgroup: sousGroupeType };
+      // console.log("RECORDARGS", setRecordsArgs);
+      app.ports.setRecords.send(newSelection ? { rows: data, selection: newSelection, editable: editableTypes, group: groupeType, subgroup: sousGroupeType } : { rows: data, editable: editableTypes, group: groupeType, subgroup: sousGroupeType });
       if (newSelection) grist.setSelectedRows(newSelection);
       // newSelection = undefined;
     }
@@ -798,4 +787,29 @@ function sendError(err) {
   console.error(err);
   app.ports.setError.send(err.message);
   app.ports.setRecords.send(setRecordsArgs);
+}
+
+async function populate(f) {
+
+  if (f.type.startsWith("Ref:")) {
+    try {
+      const table = await grist.docApi.fetchTable(f.type.substring(4));
+      const columns = await grist.docApi.fetchTable('_grist_Tables_column');
+      const index = columns.id.indexOf(f.visibleCol);
+      // console.log("TABLE", table);
+      // console.log("COLS", columns, f.visibleCol, index);
+
+      if (index > -1) {
+        col = columns.colId[index];
+        f.references = table.id.map((id, idx) => ({ id, label: table[col][idx] }));
+      }
+      return f;
+
+    } catch (err) {
+      console.log("ERRORERROR", err);
+      return f;
+    }
+
+  } else
+    return f;
 }

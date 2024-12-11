@@ -17,5 +17,7 @@
     "settings": "Settings",
     "timelineDirection": "Timeline direction",
     "horizontal": "Horizontal",
-    "vertical": "Vertical"
+    "vertical": "Vertical",
+    "newMoment": "New moment",
+    "create": "Create"
 }

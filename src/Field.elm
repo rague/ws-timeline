@@ -1,4 +1,4 @@
-module Field exposing (ChoiceId(..), ChoiceRecord, Field, FieldType(..), NumberFormat(..), Values(..), choiceIdToString, decoder, encodeChoiceId)
+module Field exposing (ChoiceId(..), ChoiceRecord, Field, FieldType(..), NumberFormat(..), Values(..), choiceIdToRawString, choiceIdToString, decoder, encodeChoiceId, stringToChoiceId)
 
 import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder, Value)
@@ -13,6 +13,7 @@ type alias Field =
     , position : Int
     , ofType : FieldType
     , values : Values
+    , isFormula : Bool
     }
 
 
@@ -72,7 +73,29 @@ choiceIdToString cid =
             str
 
         ChoiceInt int ->
+            "___Int:" ++ String.fromInt int
+
+
+choiceIdToRawString : ChoiceId -> String
+choiceIdToRawString cid =
+    case cid of
+        ChoiceString str ->
+            str
+
+        ChoiceInt int ->
             String.fromInt int
+
+
+stringToChoiceId : String -> Maybe ChoiceId
+stringToChoiceId str =
+    if String.startsWith "___Int:" str then
+        String.dropLeft 7 str
+            |> String.toInt
+            |> Maybe.map ChoiceInt
+
+    else
+        ChoiceString str
+            |> Just
 
 
 encodeChoiceId : ChoiceId -> Value
@@ -87,11 +110,12 @@ encodeChoiceId cid =
 
 decoder : ChoiceRecord -> Decoder Field
 decoder defaultChoice =
-    Decode.map3
-        (\id label ofType -> { id = id, label = label, ofType = ofType })
+    Decode.map4
+        (\id label ofType isFormula -> { id = id, label = label, ofType = ofType, isFormula = isFormula })
         (Decode.field "colId" Decode.string)
         (Decode.field "label" Decode.string)
         (fieldTypeDecoder defaultChoice)
+        (Decode.field "isFormula" Decode.bool)
         |> Decode.andThen
             (\f ->
                 Decode.map
@@ -101,6 +125,7 @@ decoder defaultChoice =
                         , position = 0
                         , ofType = f.ofType
                         , values = values
+                        , isFormula = f.isFormula
                         }
                     )
                     (Decode.maybe (Decode.field "values" (valuesDecoderFor f.ofType))
