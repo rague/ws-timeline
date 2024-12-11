@@ -1488,7 +1488,7 @@ view model =
           else
             HA.class ""
         ]
-        ([ Html.node "style" [] [ Html.text styles ]
+        ([ Html.node "style" [] [ Html.text (styles ++ Segment.styles) ]
          , Segment.menu ShowPanel
             model.panel
             [ { value = General, label = Html.text "Données et aspect" }
@@ -2335,59 +2335,6 @@ hr {
     }
 }
 
-.tabs-radio {
-    margin-top: 6px;
-    user-select: none;
-}
-
-.tabs-radio > span {
-    cursor: pointer;
-    padding: 4px 8px;
-    border: 1px solid #BBB;
-    border-right: 0px;
-    user-select: none;
-    &.selected {
-        background-color: steelblue;
-        color: white;
-    }
-    &:first-child {
-        border-radius: 5px 0 0 5px;
-    }
-    &:last-child {
-        border-right: 1px solid #BBB;
-        border-radius: 0 5px 5px 0;
-    }
-
-}
-
-
-.tabs-menu {
-    width: 100%;
-    border-bottom: 1px solid lightgrey;
-    user-select: none;
-    margin-bottom: 6px
-}
-
-.tabs-menu > span {
-    padding: 12px 8px;
-    border-bottom: 1px solid lightgrey;
-    display: inline-block;
-    color: steelblue;
-    cursor: pointer;
-    opacity: 0.7;
-
-    position: relative;
-    top: 1px;
-
-    &:hover {
-        opacity: 1;
-    }
-    &.selected {
-        color: black;
-        border-color: black;
-        opacity: 1;
-    }
-}
 
 
 """
