@@ -138,7 +138,7 @@ main =
                   , bounce = Bounce.init
                   , fields = Dict.empty
                   , groupsField = Dict.empty
-                  , options = Options 0 0 0 38 Horizontal False
+                  , options = Options (Time.millisToPosix 0) 0 0 38 Horizontal False
                   , records = Dict.empty
                   , selectStates = Dict.empty
                   , focus = ""
@@ -1732,7 +1732,7 @@ recordDecoder =
 
 
 type alias Options =
-    { start : Float
+    { start : Time.Posix
     , zoom : Float
     , sectionOffsetY : Float
     , lineSize : Float
@@ -1744,7 +1744,7 @@ type alias Options =
 optionsDecoder : Decoder Options
 optionsDecoder =
     Decode.succeed Options
-        |> required "start" Decode.float
+        |> required "start" (Decode.int |> Decode.map Time.millisToPosix)
         |> required "zoom" Decode.float
         |> optional "sectionOffsetY" Decode.float 0
         |> optional "lineSize" Decode.float 38
@@ -1755,7 +1755,7 @@ optionsDecoder =
 encodeOptions : Options -> Value
 encodeOptions options =
     Encode.object
-        [ ( "start", Encode.float options.start )
+        [ ( "start", Encode.int (Time.posixToMillis options.start) )
         , ( "zoom", Encode.float options.zoom )
         , ( "sectionOffsetY", Encode.float options.sectionOffsetY )
         , ( "lineSize", Encode.float options.lineSize )

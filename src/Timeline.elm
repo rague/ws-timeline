@@ -365,8 +365,16 @@ showDate first width tl =
     }
 
 
-changeStartAndZoom : Float -> Float -> TimelineBox -> TimelineBox
-changeStartAndZoom start zoom tl =
+unscale zoom delta =
+    (delta * duration.day) / zoom
+
+
+changeStartAndZoom : Posix -> Float -> TimelineBox -> TimelineBox
+changeStartAndZoom posix zoom tl =
+    let
+        start =
+            -((Time.posixToMillis posix - Time.posixToMillis tl.first |> toFloat) * zoom / duration.day)
+    in
     { tl | start = start, zoom = zoom }
 
 

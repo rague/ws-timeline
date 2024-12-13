@@ -1,5 +1,6 @@
 module Timeline.Action exposing (Action(..), changeWheelAction, noAction, selectAction)
 
+import Html exposing (i)
 import Moment
 import Time exposing (Posix)
 import Timeline.Models exposing (..)
@@ -17,7 +18,7 @@ type Action
     | ModifyGroupLabel GroupId String
     | CloneSections Selection Moment.Duration (Maybe GroupId)
     | DuplicateSections Selection
-    | ChangeZoom { start : Float, zoom : Float, sectionOffsetY : Float, lineSize : Float }
+    | ChangeZoom { start : Posix, zoom : Float, sectionOffsetY : Float, lineSize : Float }
     | Split Selection Posix
 
 
@@ -33,4 +34,11 @@ selectAction b =
 
 changeWheelAction : TimelineBox -> ( TimelineBox, Action, Cmd msg )
 changeWheelAction tl =
-    ( tl, ChangeZoom { start = tl.start, zoom = tl.zoom, sectionOffsetY = tl.sectionOffsetY, lineSize = tl.lineSize }, Cmd.none )
+    let
+        start =
+            unscale tl.zoom -tl.start
+                + (Time.posixToMillis tl.first |> toFloat)
+                |> round
+                |> Time.millisToPosix
+    in
+    ( tl, ChangeZoom { start = start, zoom = tl.zoom, sectionOffsetY = tl.sectionOffsetY, lineSize = tl.lineSize }, Cmd.none )
