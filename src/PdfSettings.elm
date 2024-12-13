@@ -1071,7 +1071,7 @@ update msg model =
 
         ContentAddShowMsg ->
             let
-                ( actions, updatedState, cmds ) =
+                ( _, updatedState, cmds ) =
                     Select.update Select.focus model.contentAddState
             in
             ( { model | contentAddState = updatedState }, Cmd.map ContentAddMsg cmds )
@@ -1099,7 +1099,7 @@ update msg model =
 
         SortAddShowMsg ->
             let
-                ( actions, updatedState, cmds ) =
+                ( _, updatedState, cmds ) =
                     Select.update Select.focus model.sortAddState
             in
             ( { model | sortAddState = updatedState }, Cmd.map SortAddMsg cmds )
@@ -1167,7 +1167,7 @@ update msg model =
 
         FiltersAddShowMsg ->
             let
-                ( actions, updatedState, cmds ) =
+                ( _, updatedState, cmds ) =
                     Select.update Select.focus model.filtersAddState
             in
             ( { model | filtersAddState = updatedState }, Cmd.map FiltersAddMsg cmds )
