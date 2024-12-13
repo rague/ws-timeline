@@ -123,6 +123,7 @@ main =
                 in
                 ( { timelineState =
                         Timeline.init []
+                            (startDateFromFlags flags)
                             -- groupsData
                             |> Timeline.canEditGroups False
                             |> Timeline.canSortGroups False
@@ -318,6 +319,20 @@ languageFromFlags flags =
 
         Err _ ->
             "en"
+
+
+startDateFromFlags : Value -> Time.Posix
+startDateFromFlags flags =
+    let
+        result =
+            Decode.decodeValue (Decode.field "startDate" Decode.int) flags
+    in
+    case result of
+        Ok int ->
+            Time.millisToPosix int
+
+        Err _ ->
+            Time.millisToPosix 1735686000000
 
 
 inspectorView : Model -> Dict String ( Field, FieldState ) -> Html.Html Msg

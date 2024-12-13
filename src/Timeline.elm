@@ -1,4 +1,4 @@
-module Timeline exposing (Msg(..), applyAction, calcLayersSize, canEditGroups, canSortGroups, changeDirection, changeLineSize, changeStartAndZoom, changeYOffset, default, init, periodIsEqual, reinit, sectionsView, setLanguage, styles, subscriptions, update, vertical, view, zoomAllTime)
+module Timeline exposing (Msg(..), applyAction, calcLayersSize, canEditGroups, canSortGroups, changeDirection, changeLineSize, changeStartAndZoom, changeYOffset, init, periodIsEqual, reinit, sectionsView, setLanguage, styles, subscriptions, update, vertical, view, zoomAllTime)
 
 import Browser.Dom
 import Browser.Events
@@ -133,8 +133,8 @@ generateSectionBoxes ( gbox, layers ) boxes =
             layers
 
 
-default : TimelineBox
-default =
+default : Posix -> TimelineBox
+default posix =
     let
         dir =
             Horizontal
@@ -152,7 +152,7 @@ default =
     , zoom = 50
     , zoomChange = 0
     , lineSize = 38
-    , first = Time.millisToPosix 0
+    , first = posix
     , direction = dir
     , selection = emptySelection
     , interaction = MouseOver ( Time.millisToPosix -1, -1 )
@@ -197,9 +197,9 @@ system dir =
 -- fin dnd
 
 
-init : List Group -> TimelineBox
-init groups =
-    toTimelineBox groups default
+init : List Group -> Posix -> TimelineBox
+init groups posix =
+    toTimelineBox groups (default posix)
 
 
 reinit : List Group -> TimelineBox -> TimelineBox

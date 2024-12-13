@@ -54,7 +54,7 @@ window.addEventListener('load', async (event) => {
 
   await translatePage();
 
-  app = Elm.Widget.init({ flags: { language: getLanguage() } });
+  app = Elm.Widget.init({ flags: { language: getLanguage(), startDate: (new Date()).valueOf() - 86400000 } });
 
   app.ports.updateOptions.subscribe(opts => {
     options = opts;
