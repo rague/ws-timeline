@@ -1,4 +1,4 @@
-module Timeline exposing (Msg(..), applyAction, calcLayersSize, canEditGroups, canSortGroups, changeDirection, changeLineSize, changeStartAndZoom, changeYOffset, init, periodIsEqual, reinit, sectionsView, setLanguage, setWrapText, styles, subscriptions, update, view, zoomAllTime)
+module Timeline exposing (Msg(..), applyAction, calcLayersSize, canEditGroups, canSortGroups, changeDirection, changeLineSize, changeStartAndZoom, changeYOffset, init, reinit, sectionsView, setLanguage, setWrapText, styles, subscriptions, update, view, zoomAllTime)
 
 import Browser.Dom
 import Browser.Events
@@ -19,7 +19,6 @@ import Math.Vector3 exposing (Vec3, vec3)
 import Math.Vector4 exposing (Vec4)
 import Moment
 import Set
-import Svg
 import Svg.Attributes exposing (height, width, x, y)
 import Svg.Events exposing (..)
 import Task
@@ -65,12 +64,6 @@ subscriptions box =
 ------------
 -- layering
 ------------
---layout : List (Duration a) -> List (List (Duration a))
---layout group =
---    toLayer group
---        |> List.sortBy second
---        |> Extra.groupWhile (\( _, lay1 ) ( _, lay2 ) -> lay1 == lay2)
---        |> List.map (List.map first)
 
 
 calcLayer : List ( Period a, Int ) -> Period a -> Int
@@ -276,33 +269,6 @@ applyAction action tl =
 
         _ ->
             tl
-
-
-periodIsEqual : TimelineBox -> TimelineBox -> Bool
-periodIsEqual a b =
-    let
-        mbafirst =
-            List.head a.sections
-                |> Maybe.map (.section >> .start >> Time.posixToMillis)
-
-        mbalast =
-            Extra.last a.sections
-                |> Maybe.map (.section >> .end >> Time.posixToMillis)
-
-        mbbfirst =
-            List.head b.sections
-                |> Maybe.map (.section >> .start >> Time.posixToMillis)
-
-        mbblast =
-            Extra.last b.sections
-                |> Maybe.map (.section >> .end >> Time.posixToMillis)
-    in
-    case ( ( mbafirst, mbalast ), ( mbbfirst, mbblast ) ) of
-        ( ( Just afirst, Just alast ), ( Just bfirst, Just blast ) ) ->
-            afirst == bfirst && alast == blast
-
-        _ ->
-            False
 
 
 zoomAllTime : Int -> TimelineBox -> TimelineBox

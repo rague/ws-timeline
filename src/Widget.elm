@@ -1438,7 +1438,7 @@ fieldsFromSelection zone trans selids allRecords fields =
                     Multi
     in
     Dict.map
-        (\key ( field, value ) ->
+        (\key ( field, _ ) ->
             let
                 values =
                     List.map (Dict.get key) sel

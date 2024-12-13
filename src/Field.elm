@@ -3,7 +3,7 @@ module Field exposing (ChoiceId(..), ChoiceRecord, Field, FieldType(..), NumberF
 import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder, Value)
 import Json.Decode.Extra as DecodeX
-import Json.Decode.Pipeline as Pipeline exposing (hardcoded, optional, required)
+import Json.Decode.Pipeline exposing (hardcoded, optional, required)
 import Json.Encode as Encode
 
 
