@@ -19,5 +19,6 @@
     "horizontal": "Horizontal",
     "vertical": "Vertical",
     "newMoment": "Nouveau moment",
-    "create": "Créer"
+    "create": "Créer",
+    "wrapText": "Retour à la ligne automatique pour le dernier contenu"
 }

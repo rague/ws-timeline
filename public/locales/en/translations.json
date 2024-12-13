@@ -19,5 +19,6 @@
     "horizontal": "Horizontal",
     "vertical": "Vertical",
     "newMoment": "New moment",
-    "create": "Create"
+    "create": "Create",
+    "wrapText": "Wrap text of last content"
 }

@@ -31,6 +31,7 @@ defaultLanguage =
                 , ( "timeRange", I18Next.string "Time range: " )
                 , ( "timelineDirection", I18Next.string "Timeline direction" )
                 , ( "vertical", I18Next.string "Vertical" )
+                , ( "wrapText", I18Next.string "Wrap text of last content" )
                 ]
           )
         ]

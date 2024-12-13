@@ -106,3 +106,8 @@ timelineDirection translations =
 vertical : List I18Next.Translations -> String
 vertical translations =
     I18Next.tf translations "vertical"
+
+
+wrapText : List I18Next.Translations -> String
+wrapText translations =
+    I18Next.tf translations "wrapText"

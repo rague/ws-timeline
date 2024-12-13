@@ -1,4 +1,4 @@
-module Timeline exposing (Msg(..), applyAction, calcLayersSize, canEditGroups, canSortGroups, changeDirection, changeLineSize, changeStartAndZoom, changeYOffset, init, periodIsEqual, reinit, sectionsView, setLanguage, styles, subscriptions, update, vertical, view, zoomAllTime)
+module Timeline exposing (Msg(..), applyAction, calcLayersSize, canEditGroups, canSortGroups, changeDirection, changeLineSize, changeStartAndZoom, changeYOffset, init, periodIsEqual, reinit, sectionsView, setLanguage, setWrapText, styles, subscriptions, update, view, zoomAllTime)
 
 import Browser.Dom
 import Browser.Events
@@ -162,6 +162,7 @@ default posix =
     , zone = TimeZone.europe__paris ()
     , canSortGroups = True
     , canEditGroups = True
+    , wrapText = False
     , currentPosix = Time.millisToPosix 0
     }
 
@@ -497,17 +498,11 @@ changeDirection dir tl =
     }
 
 
-vertical : Bool -> TimelineBox -> TimelineBox
-vertical bool tl =
-    let
-        dir =
-            if bool then
-                Vertical
-
-            else
-                Horizontal
-    in
-    changeDirection dir tl
+setWrapText : Bool -> TimelineBox -> TimelineBox
+setWrapText bool tl =
+    { tl
+        | wrapText = bool
+    }
 
 
 setLanguage : String -> TimelineBox -> TimelineBox
@@ -1543,6 +1538,7 @@ sectionsView ({ direction } as box) sections width height fromTime endTime =
                 unselectSections
                 Nothing
                 Nothing
+                box.wrapText
             ]
         , Html.div
             [ HA.style "width" (String.fromInt width ++ "px")
@@ -1587,6 +1583,7 @@ sectionsView ({ direction } as box) sections width height fromTime endTime =
                 selectSections
                 mbselection
                 mbdraw
+                box.wrapText
             ]
         , Html.div
             [ HA.style "position" "absolute"
@@ -1618,8 +1615,9 @@ drawHtmlSections :
     -> List (SectionView a)
     -> Maybe ( ( Float, Float ), ( Float, Float ) )
     -> Maybe (List { b | section : Maybe Section, left : Float, top : Float, w : Float, h : Float, start : Posix, end : Posix })
+    -> Bool
     -> Html Msg
-drawHtmlSections direction locale zone _ _ scrollX scrollY allSections mbselection mbdraw =
+drawHtmlSections direction locale zone _ _ scrollX scrollY allSections mbselection mbdraw wrapText =
     Html.div
         [ HA.style "position" "absolute"
         , HA.style "left" ((String.fromFloat <| scrollX) ++ "px")
@@ -1630,14 +1628,13 @@ drawHtmlSections direction locale zone _ _ scrollX scrollY allSections mbselecti
             (List.map
                 (\({ section } as sbox) ->
                     ( sbox.section.id
-                    , Html.Lazy.lazy8 sectionBox2html
+                    , Html.Lazy.lazy7 sectionBox2html
                         ( locale, zone )
                         direction
-                        sbox.left
-                        sbox.top
-                        sbox.width
-                        sbox.height
+                        ( sbox.left, sbox.top )
+                        ( sbox.width, sbox.height )
                         sbox.selected
+                        wrapText
                         section
                     )
                 )
@@ -1662,11 +1659,10 @@ drawHtmlSections direction locale zone _ _ scrollX scrollY allSections mbselecti
                         (\draw ->
                             sectionBox2html ( locale, zone )
                                 direction
-                                draw.left
-                                draw.top
-                                draw.w
-                                draw.h
+                                ( draw.left, draw.top )
+                                ( draw.w, draw.h )
                                 False
+                                wrapText
                                 { start = draw.start
                                 , end = draw.end
                                 , color = "new"
@@ -1691,10 +1687,9 @@ drawHtmlSections direction locale zone _ _ scrollX scrollY allSections mbselecti
 sectionBox2html :
     ( Locale, Time.Zone )
     -> Direction
-    -> Float
-    -> Float
-    -> Float
-    -> Float
+    -> ( Float, Float )
+    -> ( Float, Float )
+    -> Bool
     -> Bool
     ->
         { a
@@ -1704,21 +1699,19 @@ sectionBox2html :
             , labels : List String
         }
     -> Html msg
-sectionBox2html ( locale, zone ) direction positionh positionv sizeh sizev isSelected { color, labels, start, end } =
+sectionBox2html ( locale, zone ) direction ( positionh, positionv ) ( sizeh, sizev ) isSelected wrapText { color, labels, start, end } =
     let
         posx =
             positionh
 
+        posy =
+            positionv
+
         dx =
             0
 
-        -- posx - (round posx |> toFloat)
         dy =
             0
-
-        -- posy - (round posy |> toFloat)
-        posy =
-            positionv
 
         hideTime =
             (direction == Horizontal && (sizeh < 55))
@@ -1729,18 +1722,25 @@ sectionBox2html ( locale, zone ) direction positionh positionv sizeh sizev isSel
                 || (direction == Vertical && (sizeh < 25))
 
         labelsSel =
-            (List.take
-                ((if sizev < 25 then
-                    sizev / 13
+            labels
+                |> (if wrapText then
+                        List.concatMap (String.split "\n")
 
-                  else
-                    (sizev - 13) / 13
-                 )
-                    |> ceiling
-                )
-                labels
-             -- [ String.fromFloat posx ]
-            )
+                    else
+                        identity
+                   )
+                |> List.take
+                    ((if sizev < 25 then
+                        sizev / 13
+
+                      else
+                        (sizev - 13) / 13
+                     )
+                        |> ceiling
+                    )
+
+        maxLabelsSel =
+            List.length labels - 1
     in
     Html.div
         [ HA.class "section"
@@ -1821,12 +1821,13 @@ sectionBox2html ( locale, zone ) direction positionh positionv sizeh sizev isSel
                                     |> Html.div
                                         [ HA.style "overflow" "hidden"
                                         , HA.style "white-space"
-                                            -- (if i == maxLabelsSel then
-                                            -- "wrap"
-                                            --  else
-                                            "nowrap"
+                                            (if i >= maxLabelsSel && wrapText then
+                                                "wrap"
 
-                                        -- )
+                                             else
+                                                "nowrap"
+                                            )
+
                                         {- , HA.style "text-overflow" "ellipsis" -}
                                         ]
                             )

@@ -63,6 +63,7 @@ type Msg
     | GotTranslations (Result Http.Error I18Next.Translations)
     | ShowModal Modal
     | UpdateDirection Direction
+    | UpdateWrap Bool
 
 
 type View
@@ -137,7 +138,7 @@ main =
                   , bounce = Bounce.init
                   , fields = Dict.empty
                   , groupsField = Dict.empty
-                  , options = Options 0 0 0 38 Horizontal
+                  , options = Options 0 0 0 38 Horizontal False
                   , records = Dict.empty
                   , selectStates = Dict.empty
                   , focus = ""
@@ -255,6 +256,15 @@ view model =
                             model.timelineState.direction
                             [ { value = Horizontal, label = Html.text (T.horizontal model.translations) }
                             , { value = Vertical, label = Html.text (T.vertical model.translations) }
+                            ]
+                        , Html.label [ HA.style "margin-top" "20px" ]
+                            [ Html.input
+                                [ HA.type_ "checkbox"
+                                , HA.checked model.timelineState.wrapText
+                                , Html.Events.onCheck UpdateWrap
+                                ]
+                                []
+                            , Html.text (T.wrapText model.translations)
                             ]
                         ]
                     ]
@@ -686,6 +696,7 @@ update msg model =
                                         options.lineSize
                                     )
                                 |> Timeline.changeDirection options.direction
+                                |> Timeline.setWrapText options.wrapText
                         , options = options
                       }
                     , Cmd.none
@@ -893,6 +904,19 @@ update msg model =
             , Bounce.delay 500 OptionsBounceMsg
             )
 
+        UpdateWrap bool ->
+            let
+                options =
+                    model.options
+            in
+            ( { model
+                | timelineState =
+                    Timeline.setWrapText bool model.timelineState
+                , options = { options | wrapText = bool }
+              }
+            , Bounce.delay 500 OptionsBounceMsg
+            )
+
 
 timelineUpdate : Timeline.Msg -> Model -> ( Model, Cmd Msg )
 timelineUpdate tmsg model =
@@ -1019,6 +1043,7 @@ timelineUpdate tmsg model =
                             lineSize
                         )
                         model.timelineState.direction
+                        model.timelineState.wrapText
 
                 _ ->
                     model.options
@@ -1712,6 +1737,7 @@ type alias Options =
     , sectionOffsetY : Float
     , lineSize : Float
     , direction : Direction
+    , wrapText : Bool
     }
 
 
@@ -1723,6 +1749,7 @@ optionsDecoder =
         |> optional "sectionOffsetY" Decode.float 0
         |> optional "lineSize" Decode.float 38
         |> optional "direction" directionDecoder Horizontal
+        |> optional "wrapText" Decode.bool False
 
 
 encodeOptions : Options -> Value
@@ -1733,6 +1760,7 @@ encodeOptions options =
         , ( "sectionOffsetY", Encode.float options.sectionOffsetY )
         , ( "lineSize", Encode.float options.lineSize )
         , ( "direction", encodeDirection options.direction )
+        , ( "wrapText", Encode.bool options.wrapText )
         ]
 
 

@@ -286,8 +286,6 @@ type alias TimelineBox =
     , meshesSelection : Selection
     , meshes : Dict GroupId { position : Float, meshes : Mesh Vertex }
     , selectedMeshes : Dict GroupId { position : Float, meshes : Mesh Vertex }
-
-    --, time : List TimeBox
     , sectionOffsetY : Float
     , start : Float
     , zoom : Float
@@ -303,6 +301,7 @@ type alias TimelineBox =
     , zone : Time.Zone
     , canSortGroups : Bool
     , canEditGroups : Bool
+    , wrapText : Bool
     , currentPosix : Posix
     }
 
