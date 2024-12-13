@@ -1,6 +1,5 @@
 module Timeline.Action exposing (Action(..), changeWheelAction, noAction, selectAction)
 
-import Html exposing (i)
 import Moment
 import Time exposing (Posix)
 import Timeline.Models exposing (..)
