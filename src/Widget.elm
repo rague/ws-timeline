@@ -1824,6 +1824,11 @@ body {
     overflow: hidden;
     color: black;
 }
+
+input[type="checkbox"] {
+    accent-color: steelblue;
+}
+
 .field {
     padding-top: 10px;
 }

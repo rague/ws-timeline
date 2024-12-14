@@ -1591,8 +1591,8 @@ drawHtmlSections direction locale zone _ _ scrollX scrollY allSections mbselecti
                     , HA.style "width" ((String.fromFloat <| max 0 w) ++ "px")
                     , HA.style "height" ((String.fromFloat <| max 0 h) ++ "px")
                     , HA.style "position" "absolute"
-                    , HA.style "background-color" "rgba(0,0,255,0.4)"
-                    , HA.style "border" "1px solid blue"
+                    , HA.style "background-color" "rgba(70, 130, 180, 0.1)"
+                    , HA.style "border" "1px solid steelblue"
                     ]
                     []
 
@@ -2318,6 +2318,7 @@ styles =
     root ".timeline"
         [ prop "user-select" "none"
         , prop "-webkit-user-select" "none"
+        , child ".group div" [ prop "white-space" "wrap" ]
         , child ".group.move" [ prop "background-color" "#77f" ]
         , child ".group.even"
             [ prop "background-color" "#f7f7f7"
@@ -2342,7 +2343,7 @@ styles =
         --     ]
         , child ".group.selected" [ prop "font-weight" "800" ]
         , sister ":focus-visible" [ prop "outline" "none" ]
-        , sister ":focus" [ child ".group >div" [ prop "background-color" "rgba(100,100,255,0.1)" ] ]
+        , sister ":focus" [ child ".group >div" [ prop "background-color" "rgba(70, 130, 180, 0.2)" ] ]
         , child "g.section"
             [ child "text"
                 [ prop "fill" "black"
