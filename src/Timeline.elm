@@ -584,32 +584,32 @@ view box rect =
         [ Html.div
             (if box.direction == Horizontal then
                 [ HA.style "position" "absolute"
+                , HA.style "width" (String.fromInt lateral ++ "px")
                 , HA.style "height" (String.fromInt (rect.height - axisHeight) ++ "px")
-                , HA.style "width" (String.fromInt lateral {- rect.width -} ++ "px")
                 , HA.style "top" (String.fromInt axisHeight ++ "px")
                 , HA.style "overflow" "hidden"
+                , wheelEvent GroupsWheel
+                , moveY0Event SectionsMove
                 ]
 
              else
                 [ HA.style "position" "absolute"
-                , HA.style "height" (String.fromInt {- rect.height -} top ++ "px")
                 , HA.style "width" (String.fromInt (rect.width - axisWidth) ++ "px")
+                , HA.style "height" (String.fromInt top ++ "px")
                 , HA.style "left" (String.fromInt axisWidth ++ "px")
                 , HA.style "overflow" "hidden"
+                , wheelEvent GroupsWheel
+                , moveY0Event SectionsMove
                 ]
             )
             [ if box.direction == Horizontal then
-                Html.Lazy.lazy4 drawGroups
+                Html.Lazy.lazy2 drawGroups
                     box
                     lateral
-                    lateral
-                    rect.height
 
               else
-                Html.Lazy.lazy4 drawGroups
+                Html.Lazy.lazy2 drawGroups
                     box
-                    top
-                    rect.width
                     top
             ]
         , if box.direction == Horizontal then
@@ -650,6 +650,7 @@ view box rect =
                     [ HA.style "position" "absolute"
                     , HA.style "overflow" "hidden"
                     , HA.style "top" "0px"
+                    , HA.style "width" <| (List.map .size (Dict.values box.groups) |> List.sum |> toFloat |> (*) box.lineSize |> ceiling |> String.fromInt) ++ "px"
                     , HA.style "height" <|
                         String.fromInt height
                             ++ "px"
@@ -773,7 +774,9 @@ drawRowsBackground groups lineSize sel =
 
 drawColsBackground : Dict GroupId GroupBox -> Float -> Selection -> Html Msg
 drawColsBackground groups lineSize sel =
-    Html.div [ HA.style "height" "100%" ] <|
+    Html.div
+        [ HA.style "height" "100%" ]
+    <|
         List.indexedMap
             (\j ( id, g ) ->
                 Html.div
@@ -817,8 +820,8 @@ type Msg
     | UpdateTime Time.Posix
 
 
-drawGroups : TimelineBox -> Int -> Int -> Int -> Html Msg
-drawGroups box size fullWidth height =
+drawGroups : TimelineBox -> Int -> Html Msg
+drawGroups box size =
     let
         groups =
             box.groups
@@ -827,19 +830,12 @@ drawGroups box size fullWidth height =
         (if box.direction == Horizontal then
             [ HA.style "top" (String.fromInt (round box.sectionOffsetY) ++ "px")
             , HA.style "position" "relative"
-            , HA.style "height" (String.fromInt height ++ "px")
-            , wheelEvent GroupsWheel
-            , moveX0Event SectionsMove
             ]
 
          else
             [ HA.style "left" (String.fromInt (round box.sectionOffsetY) ++ "px")
             , HA.style "position" "relative"
-            , HA.style "width" (String.fromInt fullWidth ++ "px")
-
-            -- , HA.style "height" (String.fromInt height ++ "px")
-            , wheelEvent GroupsWheel
-            , moveY0Event SectionsMove
+            , HA.style "width" <| (List.map .size (Dict.values groups) |> List.sum |> toFloat |> (*) box.lineSize |> ceiling |> String.fromInt) ++ "px"
             ]
         )
         [ Html.node "style" [] [ Html.text ".handle:hover {background-color:rgba(0,0,250,0.05);}" ]
@@ -852,11 +848,6 @@ drawGroups box size fullWidth height =
                         box.direction
                         box.lineSize
                         size
-                        -- (if box.direction == Horizontal then
-                        --     fullWidth
-                        --  else
-                        --     height
-                        -- )
                         size
                         (case box.interaction of
                             EditGroupLabel gid str ->
@@ -894,7 +885,6 @@ drawGroups box size fullWidth height =
                     )
                         ++ [ HA.style "display" "flex"
                            , HA.style "flex-wrap" "wrap"
-                           , HA.style "width" <| (List.map .size (Dict.values groups) |> List.sum |> (*) (round box.lineSize) |> String.fromInt) ++ "px"
                            , HA.style "pointer-events" "none"
                            ]
                 )
@@ -938,7 +928,9 @@ groupView dnd direction lineSize size fullSize mbedit index group canEditG canSo
 
         ( ( w, h, disp ), ( nw, nh ) ) =
             if direction == Horizontal then
-                ( ( toFloat fullSize, lineSize * toFloat group.size, "block" ), ( String.fromInt size ++ "px", "100%" ) )
+                ( ( toFloat fullSize, lineSize * toFloat group.size, "block" )
+                , ( String.fromInt size ++ "px", "100%" )
+                )
 
             else
                 ( ( lineSize * toFloat group.size, toFloat fullSize, "inline-block" )
@@ -970,18 +962,7 @@ groupView dnd direction lineSize size fullSize mbedit index group canEditG canSo
 
                           else
                             HA.class ""
-
-                        -- , HA.style "background-color"
-                        --     (if index == dropIndex then
-                        --         "#77f"
-                        --      else if modBy 2 index == 0 then
-                        --         "#f7f7f7"
-                        --      else
-                        --         "white"
-                        --     )
                         , HA.id itemId
-
-                        -- , HA.style "display" disp
                         ]
                         [ Html.div
                             ([ HA.style "height" nh
@@ -1001,9 +982,6 @@ groupView dnd direction lineSize size fullSize mbedit index group canEditG canSo
                         ([ HA.style "height" (String.fromFloat h ++ "px")
                          , HA.style "width" (String.fromFloat w ++ "px")
                          , HA.style "background-color" "#aaa"
-
-                         --  , HA.id itemId
-                         --  , HA.style "display" disp
                          ]
                             ++ (system direction).dropEvents index itemId
                         )
@@ -1028,13 +1006,6 @@ groupView dnd direction lineSize size fullSize mbedit index group canEditG canSo
 
                       else
                         HA.class ""
-
-                    -- , HA.style "background-color"
-                    --     (if modBy 2 index == 0 then
-                    --         "#f7f7f7"
-                    --      else
-                    --         "white"
-                    --     )
                     , HA.id itemId
                     , HA.style "display" disp
                     ]
@@ -1045,8 +1016,6 @@ groupView dnd direction lineSize size fullSize mbedit index group canEditG canSo
                          else
                             [ HA.style "width" nw
                             , HA.style "height" nh
-
-                            -- , HA.style "background-color" "rgba(100,100,255,0.1)"
                             , HA.style "display" "flex"
                             , HA.style "align-items" "center"
                             , HA.style "white-space" "nowrap"
