@@ -1,0 +1,1 @@
+npx @abradley2/elm-i18next-gen --output=src/PdfSettings/ --translations=pdf-gen/locales/en/translations.json
