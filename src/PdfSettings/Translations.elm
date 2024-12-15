@@ -23,6 +23,16 @@ alignRight translations =
     I18Next.tf translations "alignRight"
 
 
+chooseColumn : List I18Next.Translations -> String
+chooseColumn translations =
+    I18Next.tf translations "chooseColumn"
+
+
+chooseTable : List I18Next.Translations -> String
+chooseTable translations =
+    I18Next.tf translations "chooseTable"
+
+
 colorField : List I18Next.Translations -> String
 colorField translations =
     I18Next.tf translations "colorField"
@@ -31,6 +41,26 @@ colorField translations =
 content : List I18Next.Translations -> String
 content translations =
     I18Next.tf translations "content"
+
+
+data : List I18Next.Translations -> String
+data translations =
+    I18Next.tf translations "data"
+
+
+dataAndAppearance : List I18Next.Translations -> String
+dataAndAppearance translations =
+    I18Next.tf translations "dataAndAppearance"
+
+
+direction : List I18Next.Translations -> String
+direction translations =
+    I18Next.tf translations "direction"
+
+
+filters : List I18Next.Translations -> String
+filters translations =
+    I18Next.tf translations "filters"
 
 
 fromDate : List I18Next.Translations -> String
@@ -73,11 +103,6 @@ landscape translations =
     I18Next.tf translations "landscape"
 
 
-multiline : List I18Next.Translations -> String
-multiline translations =
-    I18Next.tf translations "multiline"
-
-
 orientation : List I18Next.Translations -> String
 orientation translations =
     I18Next.tf translations "orientation"
@@ -93,9 +118,34 @@ paperSize translations =
     I18Next.tf translations "paperSize"
 
 
+pdfDownload : List I18Next.Translations -> String
+pdfDownload translations =
+    I18Next.tf translations "pdfDownload"
+
+
+period : List I18Next.Translations -> String
+period translations =
+    I18Next.tf translations "period"
+
+
 portrait : List I18Next.Translations -> String
 portrait translations =
     I18Next.tf translations "portrait"
+
+
+settings : List I18Next.Translations -> String
+settings translations =
+    I18Next.tf translations "settings"
+
+
+sort : List I18Next.Translations -> String
+sort translations =
+    I18Next.tf translations "sort"
+
+
+sortAndFilter : List I18Next.Translations -> String
+sortAndFilter translations =
+    I18Next.tf translations "sortAndFilter"
 
 
 subGroupField : List I18Next.Translations -> String
@@ -111,6 +161,11 @@ table translations =
 taskFontSize : List I18Next.Translations -> String
 taskFontSize translations =
     I18Next.tf translations "taskFontSize"
+
+
+tasksLayout : List I18Next.Translations -> String
+tasksLayout translations =
+    I18Next.tf translations "tasksLayout"
 
 
 textSize : List I18Next.Translations -> String
@@ -141,3 +196,8 @@ vertical translations =
 verticalPages : List I18Next.Translations -> String
 verticalPages translations =
     I18Next.tf translations "verticalPages"
+
+
+wrapText : List I18Next.Translations -> String
+wrapText translations =
+    I18Next.tf translations "wrapText"

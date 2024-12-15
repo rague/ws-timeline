@@ -1,6 +1,45 @@
 const secondsPerDay = 24 * 60 * 60;
+const t = i18next.t;
 
 var app;
+
+function getLanguage() {
+    if (this._lang) {
+        return this._lang;
+    } else {
+        const queryString = window.location.search;
+        const urlParams = new URLSearchParams(queryString);
+        // this._lang = (urlParams.get('language') ?? navigator.language ?? 'en');
+        this._lang = navigator.language;
+        console.log("getLanguage() =>", this._lang);
+        return this._lang;
+    }
+}
+
+
+async function translatePage() {
+
+    const backendOptions = {
+
+        loadPath: '../pdf-gen/locales/{{lng}}/translations.json',
+        // don't allow cross domain requests
+        crossDomain: false,
+        // don't include credentials on cross domain requests
+        withCredentials: false,
+        // overrideMimeType sets request.overrideMimeType("application/json")
+        overrideMimeType: false,
+    }
+    await i18next.use(i18nextHttpBackend).init({
+        lng: getLanguage(),
+        debug: false,
+        saveMissing: false,
+        returnNull: false,
+        backend: backendOptions,
+    }
+    );
+
+    document.getElementById("download").innerHTML = t("pdfDownload");
+}
 
 function debounce(func, wait, immediate, context) {
     var result;
@@ -67,13 +106,22 @@ let rawtable = [];
 let _mappings;
 let metas = [];
 
-window.addEventListener('load', (event) => {
+window.addEventListener('load', async (event) => {
     console.log('La page est complètement chargée');
 
     let options = undefined;
     let currentRecord;
     let settings;
     let title;
+
+    await translatePage();
+
+    app = Elm.PdfSettings.init(
+        {
+            node: document.getElementById('config'),
+            flags: { language: getLanguage() }
+        }
+    );
 
     app.ports.elmToJs.subscribe(async obj => {
         console.log("ELM TO JS", obj);
@@ -293,7 +341,7 @@ window.addEventListener('load', (event) => {
         columns: [
             {
                 name: "title", // What field we will read.
-                title: "Titre", // Friendly field name.
+                title: t("title"), // Friendly field name.
                 optional: false, // Is this an optional field.
                 type: "Text", // What type of column we expect.
                 //   description: "D", // Description of a field.
@@ -302,7 +350,7 @@ window.addEventListener('load', (event) => {
             },
             {
                 name: "data",
-                title: "Données",
+                title: t("settings"),
                 optional: false,
                 type: "Text",
                 allowMultiple: false,
@@ -378,7 +426,8 @@ window.addEventListener('load', (event) => {
                 title: record[mappings.title],
                 settings: settings,
                 tables: tables.tableId,
-                fields: metas
+                fields: metas,
+                language: getLanguage()
             });
         }
 

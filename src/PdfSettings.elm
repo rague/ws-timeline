@@ -11,6 +11,7 @@ import Html exposing (Html)
 import Html.Attributes as HA
 import Html.Events as HE
 import Html.Styled as Styled
+import Http
 import I18Next
 import Iso8601
 import Json.Decode as Decode exposing (Decoder)
@@ -478,7 +479,8 @@ type alias Model =
     , form : SettingsForm
     , error : Maybe String
     , zone : Time.Zone
-    , lang : List I18Next.Translations
+    , language : String
+    , translations : List I18Next.Translations
     , panel : Panel
     , contentDnd : DnDList.Model
     , contentAddState : Select.State
@@ -560,6 +562,20 @@ main =
         }
 
 
+languageFromFlags : Value -> String
+languageFromFlags flags =
+    let
+        result =
+            Decode.decodeValue (Decode.field "language" Decode.string) flags
+    in
+    case result of
+        Ok language ->
+            language
+
+        Err _ ->
+            "en"
+
+
 init : Value -> ( Model, Cmd.Cmd Msg )
 init flags =
     let
@@ -572,6 +588,15 @@ init flags =
 
         { title, settings, tables, fields } =
             Result.withDefault initialFlags result
+
+        lang =
+            languageFromFlags flags
+
+        loadTransCmd =
+            Http.get
+                { url = "../pdf-gen/locales/" ++ String.slice 0 2 lang ++ "/translations.json"
+                , expect = Http.expectJson GotTranslations I18Next.translationsDecoder
+                }
     in
     ( { title = title
       , settings = settings
@@ -588,7 +613,8 @@ init flags =
                 Err err ->
                     Decode.errorToString err |> Just
       , zone = Time.utc
-      , lang = [ defaultLanguage ]
+      , language = lang
+      , translations = [ defaultLanguage ]
       , panel = General
       , contentDnd = contentSystem.model
       , sortDnd = sortSystem.model
@@ -597,7 +623,7 @@ init flags =
       , filtersAddState = Select.initState (Select.selectIdentifier "filtersAddState")
       , filtersEdit = Nothing
       }
-    , Cmd.none
+    , loadTransCmd
     )
 
 
@@ -788,6 +814,7 @@ type Msg
     | FilterExclude String Bool
     | FilterAddValues String ValueSet
     | FilterRemoveValues String ValueSet
+    | GotTranslations (Result Http.Error I18Next.Translations)
 
 
 updateSettings : Settings -> Model -> Model
@@ -834,6 +861,14 @@ update msg model =
             model.form
     in
     case msg of
+        GotTranslations res ->
+            case res of
+                Ok trans ->
+                    ( { model | translations = trans :: model.translations }, Cmd.none )
+
+                Err _ ->
+                    ( { model | error = Just "Can't load translation file : Http error" }, Cmd.none )
+
         ReceiveData value ->
             let
                 ( mdl, cmd ) =
@@ -1491,8 +1526,8 @@ view model =
         ([ Html.node "style" [] [ Html.text (styles ++ Segment.styles) ]
          , Segment.menu ShowPanel
             model.panel
-            [ { value = General, label = Html.text "Données et aspect" }
-            , { value = Filters, label = Html.text "Trier et filtrer" }
+            [ { value = General, label = Html.text (T.dataAndAppearance model.translations) }
+            , { value = Filters, label = Html.text (T.sortAndFilter model.translations) }
             ]
          ]
             ++ (case model.panel of
@@ -1506,7 +1541,7 @@ view model =
 
 
 generalView : Model -> List (Html Msg)
-generalView ({ settings, form, lang } as model) =
+generalView ({ settings, form, translations } as model) =
     let
         fields =
             settings.table
@@ -1546,28 +1581,28 @@ generalView ({ settings, form, lang } as model) =
         |> Maybe.withDefault (Html.text "")
     , inputField [ HA.style "width" "100%", HA.style "max-width" "400px" ] "Titre" model.title UpdateTitle BlurTitle
     , Html.hr [] []
-    , section "Données"
+    , section (T.data translations)
     , selectInput [ HA.style "max-width" "400px" ]
-        (T.table lang ++ "*")
+        (T.table translations ++ "*")
         False
-        "Choisir une table"
+        (T.chooseTable translations)
         form.tableSelect
         (settings.table |> Maybe.map (\sel -> Select.basicMenuItem { item = sel, label = sel }))
         (List.map (\table -> Select.basicMenuItem { item = table, label = table }) model.tables)
         UpdateTable
     , Html.div [ HA.class "horiz" ]
         [ selectInput []
-            (T.fromField lang ++ "*")
+            (T.fromField translations ++ "*")
             False
-            "Choisir une colonne"
+            (T.chooseColumn translations)
             form.startSelect
             (fieldToSelection settings.fromField)
             (fieldsToSelectOptions dateTimeFields)
             UpdateFromField
         , selectInput []
-            (T.toField lang ++ "*")
+            (T.toField translations ++ "*")
             False
-            "Choisir une colonne"
+            (T.chooseColumn translations)
             form.endSelect
             (fieldToSelection settings.toField)
             (fieldsToSelectOptions dateTimeFields)
@@ -1575,25 +1610,25 @@ generalView ({ settings, form, lang } as model) =
         ]
     , Html.div [ HA.class "horiz" ]
         [ selectInput []
-            (T.groupField lang ++ "*")
+            (T.groupField translations ++ "*")
             False
-            "Choisir une colonne"
+            (T.chooseColumn translations)
             form.groupSelect
             (fieldToSelection settings.group)
             (fieldsToSelectOptions fields)
             UpdateGroup
         , selectInput []
-            (T.subGroupField lang)
+            (T.subGroupField translations)
             True
-            "Choisir une colonne"
+            (T.chooseColumn translations)
             form.subGroupSelect
             (fieldToSelection settings.subGroup)
             (fieldsToSelectOptions fields)
             UpdateSubGroup
         , selectInput []
-            (T.colorField lang)
+            (T.colorField translations)
             True
-            "Choisir une colonne"
+            (T.chooseColumn translations)
             form.colorSelect
             (fieldToSelection settings.color)
             (fieldsToSelectOptions choiceFields)
@@ -1603,7 +1638,7 @@ generalView ({ settings, form, lang } as model) =
         [ optionsField
             { system = contentSystem
             , dnd = model.contentDnd
-            , label = "Contenu"
+            , label = T.content translations
             , options = fields
             , selection = settings.content
             , accessor = identity
@@ -1617,24 +1652,25 @@ generalView ({ settings, form, lang } as model) =
             , selectState = model.contentAddState
             , selectMsg = ContentAddMsg
             , showMsg = ContentAddShowMsg
+            , addLabel = T.chooseColumn translations
             }
         ]
     , Html.hr [] []
-    , section "Période"
+    , section (T.period translations)
     , Html.div [ HA.class "horiz" ]
-        [ inputFieldVal (T.fromDate lang) "datetime-local" form.fromDate UpdateFromDate
-        , inputFieldVal (T.toDate lang) "datetime-local" form.toDate UpdateToDate
+        [ inputFieldVal (T.fromDate translations) "datetime-local" form.fromDate UpdateFromDate
+        , inputFieldVal (T.toDate translations) "datetime-local" form.toDate UpdateToDate
         ]
     , Html.hr [] []
-    , section (T.pageLayout lang)
+    , section (T.pageLayout translations)
     , Html.div [ HA.class "horiz" ]
-        [ label [] (T.orientation lang) <|
+        [ label [] (T.orientation translations) <|
             Segment.radio UpdateLayout
                 settings.layout
-                [ { value = Portrait, label = Html.span [] [ icon [ HA.style "margin-right" "6px" ] Phosphor.file, T.portrait lang |> Html.text ] }
-                , { value = Landscape, label = Html.span [] [ icon [ HA.style "margin-right" "6px", HA.style "transform" "rotate(90deg)" ] Phosphor.file, T.landscape lang |> Html.text ] }
+                [ { value = Portrait, label = Html.span [] [ icon [ HA.style "margin-right" "6px" ] Phosphor.file, T.portrait translations |> Html.text ] }
+                , { value = Landscape, label = Html.span [] [ icon [ HA.style "margin-right" "6px", HA.style "transform" "rotate(90deg)" ] Phosphor.file, T.landscape translations |> Html.text ] }
                 ]
-        , dropdownField (T.paperSize lang)
+        , dropdownField (T.paperSize translations)
             settings.papersize
             [ ( A0, paperSizeToString A0, "A0" )
             , ( A1, paperSizeToString A1, "A1" )
@@ -1644,33 +1680,33 @@ generalView ({ settings, form, lang } as model) =
             , ( A5, paperSizeToString A5, "A5" )
             ]
             UpdatePaperSize
-        , inputFieldVal (T.verticalPages lang) "number" form.vpages UpdateVPages
-        , inputFieldVal (T.horizontalPages lang) "number" form.hpages UpdateHPages
+        , inputFieldVal (T.verticalPages translations) "number" form.vpages UpdateVPages
+        , inputFieldVal (T.horizontalPages translations) "number" form.hpages UpdateHPages
         ]
     , Html.hr [] []
-    , section "Affichage des tâches"
+    , section (T.tasksLayout translations)
     , Html.div [ HA.class "horiz" ]
-        [ label [] "Sens" <|
+        [ label [] (T.direction translations) <|
             Segment.radio UpdateOrientation
                 settings.orientation
-                [ { value = Horizontal, label = T.horizontal lang |> Html.text }
-                , { value = Vertical, label = T.vertical lang |> Html.text }
+                [ { value = Horizontal, label = T.horizontal translations |> Html.text }
+                , { value = Vertical, label = T.vertical translations |> Html.text }
                 ]
-        , label [] (T.align lang) <|
+        , label [] (T.align translations) <|
             Segment.radio UpdateAlign
                 settings.align
                 [ { value = Left, label = icon [] Phosphor.textAlignLeft }
                 , { value = Middle, label = icon [] Phosphor.textAlignCenter }
                 , { value = Right, label = icon [] Phosphor.textAlignRight }
                 ]
-        , checkboxField (T.multiline lang) settings.multiline UpdateMultiline
+        , checkboxField (T.wrapText translations) settings.multiline UpdateMultiline
         ]
     , Html.hr [] []
-    , section (T.textSize lang)
+    , section (T.textSize translations)
     , Html.div [ HA.class "horiz" ]
-        [ inputFieldVal (T.groupFontSize lang) "number" form.groupsFontSize UpdateGroupsFontSize
-        , inputFieldVal (T.taskFontSize lang) "number" form.tasksFontSize UpdateTasksFontSize
-        , inputFieldVal (T.hourFontSize lang) "number" form.hoursFontSize UpdateHoursFontSize
+        [ inputFieldVal (T.groupFontSize translations) "number" form.groupsFontSize UpdateGroupsFontSize
+        , inputFieldVal (T.taskFontSize translations) "number" form.tasksFontSize UpdateTasksFontSize
+        , inputFieldVal (T.hourFontSize translations) "number" form.hoursFontSize UpdateHoursFontSize
         ]
     ]
 
@@ -1702,7 +1738,7 @@ filtersView ({ settings } as model) =
     [ optionsField
         { system = sortSystem
         , dnd = model.sortDnd
-        , label = "Tri"
+        , label = T.sort model.translations
         , options = fields
         , selection = settings.sort
         , accessor = .field
@@ -1737,8 +1773,9 @@ filtersView ({ settings } as model) =
         , selectState = model.sortAddState
         , selectMsg = SortAddMsg
         , showMsg = SortAddShowMsg
+        , addLabel = T.chooseColumn model.translations
         }
-    , section "Filtres"
+    , section (T.filters model.translations)
     ]
         ++ (List.map
                 (\( _, opt ) ->
@@ -1779,6 +1816,7 @@ filtersView ({ settings } as model) =
                 , selectState = model.filtersAddState
                 , selectMsg = FiltersAddMsg
                 , showMsg = FiltersAddShowMsg
+                , addLabel = T.chooseColumn model.translations
                 }
            ]
 
@@ -2072,6 +2110,7 @@ fieldsPopup :
     , selectState : Select.State
     , selectMsg : Select.Msg String -> Msg
     , showMsg : Msg
+    , addLabel : String
     }
     -> Html Msg
 fieldsPopup config =
@@ -2089,7 +2128,7 @@ fieldsPopup config =
             , HA.style "background" "none"
             , HA.style "color" "steelblue"
             ]
-            [ Html.text "Ajouter une colonne" ]
+            [ Html.text config.addLabel ]
         , Select.view
             (Select.singleMenu Nothing
                 |> Select.menuItems
