@@ -101,7 +101,7 @@ type alias Period a =
 type alias Sectionic =
     { id : SectionId
     , color : String
-    , isFrozen : Bool
+    , isLocked : Bool
     , labels : List String
     , hasComment : Bool
     }
@@ -635,7 +635,7 @@ meshesForGroups firstDate groups groupsList sel oldMeshes =
         groupsList
 
 
-toMeshes : Posix -> List { a | section : { b | start : Posix, end : Posix, color : String, isFrozen : Bool, hasComment : Bool }, line : Int, selected : Bool } -> Mesh Vertex
+toMeshes : Posix -> List { a | section : { b | start : Posix, end : Posix, color : String, isLocked : Bool, hasComment : Bool }, line : Int, selected : Bool } -> Mesh Vertex
 toMeshes first taches =
     let
         firstms =
@@ -661,11 +661,21 @@ toMeshes first taches =
                         |> Color.toRgba
 
                 background =
-                    vec4 color.red color.green color.blue color.alpha
+                    vec4 color.red
+                        color.green
+                        color.blue
+                        (color.alpha
+                            * (if section.isLocked then
+                                0.3
+
+                               else
+                                1
+                              )
+                        )
 
                 -- vec4 (color.red * color.alpha) (color.green * color.alpha) (color.blue * color.alpha) color.alpha
                 border =
-                    if section.isFrozen then
+                    if section.isLocked then
                         3
 
                     else

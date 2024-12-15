@@ -23,6 +23,7 @@ defaultLanguage =
                 , ( "groupBy", I18Next.string "Group by" )
                 , ( "horizontal", I18Next.string "Horizontal" )
                 , ( "hoursShort", I18Next.string "h" )
+                , ( "isLocked", I18Next.string "Is locked" )
                 , ( "minutes", I18Next.string "Minutes" )
                 , ( "minutesShort", I18Next.string "mn" )
                 , ( "moment", I18Next.string "moment" )

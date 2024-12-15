@@ -5,6 +5,7 @@
     "groupBy": "Group by",
     "subgroupBy": "Then group by",
     "color": "Color",
+    "isLocked": "Is locked",
     "comment": "Comment",
     "content": "Content",
     "editableColumns": "Editable columns",

@@ -68,6 +68,11 @@ hoursShort translations =
     I18Next.tf translations "hoursShort"
 
 
+isLocked : List I18Next.Translations -> String
+isLocked translations =
+    I18Next.tf translations "isLocked"
+
+
 minutes : List I18Next.Translations -> String
 minutes translations =
     I18Next.tf translations "minutes"

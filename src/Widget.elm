@@ -716,7 +716,7 @@ fieldsView v ({ translations } as model) fields =
                                             HA.value <| Maybe.withDefault "" field.str
                                         , if field.field.ofType == Field.Bool then
                                             Html.Events.onClick
-                                                (ChangeText v
+                                                (ValidateText v
                                                     field.name
                                                     (Maybe.map
                                                         (\b ->
@@ -861,6 +861,7 @@ update msg model =
 
                             else
                                 model.focus
+                        , fields = Dict.update field (Maybe.map (\( f, _ ) -> ( f, Val str ))) model.fields
                       }
                     , makeFieldUpdate model field str
                     )
@@ -1252,7 +1253,7 @@ receiveData data model =
                                                 , end = rec.date + (rec.amplitude * 1000 |> round) |> Time.millisToPosix
                                                 , id = rec.id |> String.fromInt
                                                 , color = rec.couleur -- = Timeline.Models.findColorName rec.couleur
-                                                , isFrozen = False
+                                                , isLocked = rec.isLocked
                                                 , labels = rec.contenu
                                                 , hasComment = rec.comment /= Nothing
                                                 }
@@ -1758,6 +1759,7 @@ type alias Record =
     , contenu : List String
     , fields : Dict String String
     , couleur : String
+    , isLocked : Bool
     , comment : Maybe String
     }
 
@@ -1871,6 +1873,7 @@ recordDecoder =
         |> optional "contenu" (Decode.list anyDecoder) []
         |> optional "fields" (Decode.dict anyDecoder) Dict.empty
         |> required "couleur" (Decode.oneOf [ Decode.maybe Decode.string, Decode.nullable Decode.string ] |> Decode.map (Maybe.withDefault ""))
+        |> optional "isLocked" Decode.bool False
         |> optional "commentaire"
             (Decode.string
                 |> Decode.map

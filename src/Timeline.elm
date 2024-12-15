@@ -1097,7 +1097,7 @@ type alias SectionView a =
             | start : Posix
             , end : Posix
             , color : String
-            , isFrozen : Bool
+            , isLocked : Bool
             , labels : List String
             , hasComment : Bool
             , id : String
@@ -1616,7 +1616,7 @@ drawHtmlSections direction locale zone _ _ scrollX scrollY allSections mbselecti
 
                                         Nothing ->
                                             []
-                                , isFrozen = False
+                                , isLocked = False
                                 , comment = Nothing
                                 }
                         )
@@ -1709,6 +1709,7 @@ sectionBox2html ( locale, zone ) direction ( positionh, positionv ) ( sizeh, siz
                         Html.div
                             [ HA.style "fontSize" "10px"
                             , HA.class "dates"
+                            , HA.style "padding-top" "2px   "
                             ]
                             [ Html.div
                                 [ HA.style "padding-left" "2px"
@@ -2375,7 +2376,7 @@ styles =
                     , prop "width" "100%"
                     , prop "padding-right" "3px"
                     , prop "box-sizing" "border-box"
-                    , prop "top" "0px"
+                    , prop "top" "2px"
                     , prop "text-align" "end"
                     ]
                 , child "div.v-end-date"

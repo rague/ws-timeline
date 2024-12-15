@@ -128,7 +128,7 @@ makeDefSec { id, start, end, color } =
     , end = end * duration.day + 1633478400000 |> round |> Time.millisToPosix
     , id = id
     , color = color
-    , isFrozen = False
+    , isLocked = False
     , labels = [ id, "Hello world !" ]
     , hasComment =
         if modBy 3 (round start) == 1 then

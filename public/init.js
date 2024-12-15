@@ -483,6 +483,15 @@ window.addEventListener('load', async (event) => {
       },
 
       {
+        name: "isLocked",
+        title: t("isLocked"),
+        optional: true,
+        type: "Bool",
+        strictType: true
+
+      },
+
+      {
         name: "commentaire",
         title: t("comment"),
         optional: true,
@@ -529,6 +538,7 @@ window.addEventListener('load', async (event) => {
 
     mappedRecords = grist.mapColumnNames(records, mappings);
     console.log("MAPPINGS", mappings);
+    // console.log("MAPPED", mappedRecords);
     // if any records were successfully mapped, create or update them in the calendar
     if (mappedRecords) {
       // const colTypes = await colTypesFetcher.getColTypes();

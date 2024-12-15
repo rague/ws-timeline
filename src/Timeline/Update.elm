@@ -348,6 +348,9 @@ sectionsDown box { x, y, altKey, shiftKey, button } =
                                             (selectionWith sbox.groupId section.id)
                                             ( ( posix, line ), ( Moment.toDuration 0, 0 ) )
 
+                                    else if (section :: selectedSections box) |> List.foldl (\s res -> res || s.isLocked) False then
+                                        box.interaction
+
                                     else if Moment.greaterThan posix (Moment.subtractDuration section.end margin) then
                                         ResizeRight ( posix, line ) <| Moment.toDuration 0
 
