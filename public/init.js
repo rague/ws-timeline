@@ -541,7 +541,9 @@ window.addEventListener('load', async (event) => {
         clone.date = (new Date(clone.date.valueOf())).toISOString();
 
         if (paramEndDate) {
-          clone.duree = (rec.fin.valueOf() - rec.date.valueOf()) / 3600000;
+          clone.duree = (rec.fin.valueOf() - rec.date.valueOf()) / 1000;
+        } else {
+          clone.duree = clone.duree * 3600;
         }
         clone.couleur = couleur?.choiceOptions?.[clone.couleur]?.fillColor;
         clone.groupeId = rawtable[mappings.groupe][rawtable.id.indexOf(rec.id)];

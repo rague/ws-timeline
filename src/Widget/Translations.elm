@@ -3,6 +3,11 @@ module Widget.Translations exposing (..)
 import I18Next
 
 
+hours : List I18Next.Translations -> String
+hours translations =
+    I18Next.tf translations "Hours"
+
+
 color : List I18Next.Translations -> String
 color translations =
     I18Next.tf translations "color"
@@ -63,6 +68,16 @@ hoursShort translations =
     I18Next.tf translations "hoursShort"
 
 
+minutes : List I18Next.Translations -> String
+minutes translations =
+    I18Next.tf translations "minutes"
+
+
+minutesShort : List I18Next.Translations -> String
+minutesShort translations =
+    I18Next.tf translations "minutesShort"
+
+
 moment : List I18Next.Translations -> String
 moment translations =
     I18Next.tf translations "moment"
@@ -96,6 +111,11 @@ subgroupBy translations =
 timeRange : List I18Next.Translations -> String
 timeRange translations =
     I18Next.tf translations "timeRange"
+
+
+timeUnit : List I18Next.Translations -> String
+timeUnit translations =
+    I18Next.tf translations "timeUnit"
 
 
 timelineDirection : List I18Next.Translations -> String

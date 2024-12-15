@@ -64,6 +64,7 @@ type Msg
     | ShowModal Modal
     | UpdateDirection Direction
     | UpdateWrap Bool
+    | UpdateDurationUnit DurationUnit
 
 
 type View
@@ -91,6 +92,7 @@ type alias Model =
     , translations : List I18Next.Translations
     , help : String
     , showModal : Modal
+    , durationUnit : DurationUnit
     }
 
 
@@ -101,60 +103,43 @@ type Modal
     | New
 
 
+type DurationUnit
+    = Hours
+    | Minutes
+
+
+durationUnitDecoder : Decoder DurationUnit
+durationUnitDecoder =
+    Decode.string
+        |> Decode.andThen
+            (\str ->
+                case str of
+                    "Hours" ->
+                        Decode.succeed Hours
+
+                    "Minutes" ->
+                        Decode.succeed Minutes
+
+                    _ ->
+                        Decode.fail "bad duration"
+            )
+
+
+encodeDurationUnit : DurationUnit -> Value
+encodeDurationUnit du =
+    case du of
+        Hours ->
+            Encode.string "Hours"
+
+        Minutes ->
+            Encode.string "Minutes"
+
+
 main : Program Value Model Msg
 main =
     Browser.document
         { init =
-            \flags ->
-                let
-                    lang =
-                        languageFromFlags flags
-
-                    loadManCmd =
-                        Http.get
-                            { url = "../public/locales/" ++ String.slice 0 2 lang ++ "/help.md"
-                            , expect = Http.expectString GotHelp
-                            }
-
-                    loadTransCmd =
-                        Http.get
-                            { url = "../public/locales/" ++ String.slice 0 2 lang ++ "/translations.json"
-                            , expect = Http.expectJson GotTranslations I18Next.translationsDecoder
-                            }
-                in
-                ( { timelineState =
-                        Timeline.init []
-                            (startDateFromFlags flags)
-                            -- groupsData
-                            |> Timeline.canEditGroups False
-                            |> Timeline.canSortGroups False
-                            |> Timeline.setLanguage lang
-                  , error = []
-                  , errorId = 0
-                  , box =
-                        { width = 1000
-                        , height = 500
-                        }
-                  , bounce = Bounce.init
-                  , fields = Dict.empty
-                  , groupsField = Dict.empty
-                  , options = Options (Time.millisToPosix 0) 0 0 38 Horizontal False
-                  , records = Dict.empty
-                  , selectStates = Dict.empty
-                  , focus = ""
-                  , showInspector = False
-                  , language = lang
-                  , help = ""
-                  , showModal = None
-                  , translations = [ defaultLanguage ]
-                  }
-                  -- , initialSizeCmd
-                , Cmd.batch
-                    [ Task.perform (\size -> sizeToMsg (round size.viewport.width) (round size.viewport.height)) Browser.Dom.getViewport
-                    , loadManCmd
-                    , loadTransCmd
-                    ]
-                )
+            init
         , update = update
         , view = view
         , subscriptions =
@@ -184,6 +169,62 @@ main =
                                 )
                     ]
         }
+
+
+init : Value -> ( Model, Cmd Msg )
+init flags =
+    let
+        lang =
+            languageFromFlags flags
+
+        loadManCmd =
+            Http.get
+                { url = "../public/locales/" ++ String.slice 0 2 lang ++ "/help.md"
+                , expect = Http.expectString GotHelp
+                }
+
+        loadTransCmd =
+            Http.get
+                { url = "../public/locales/" ++ String.slice 0 2 lang ++ "/translations.json"
+                , expect = Http.expectJson GotTranslations I18Next.translationsDecoder
+                }
+
+        du =
+            durationUnitFromFlags flags
+    in
+    ( { timelineState =
+            Timeline.init []
+                (startDateFromFlags flags)
+                |> Timeline.canEditGroups False
+                |> Timeline.canSortGroups False
+                |> Timeline.setLanguage lang
+      , error = []
+      , errorId = 0
+      , box =
+            { width = 1000
+            , height = 500
+            }
+      , bounce = Bounce.init
+      , fields = Dict.empty
+      , groupsField = Dict.empty
+      , options = Options (Time.millisToPosix 0) 0 0 38 Horizontal False du
+      , records = Dict.empty
+      , selectStates = Dict.empty
+      , focus = ""
+      , showInspector = False
+      , language = lang
+      , help = ""
+      , showModal = None
+      , translations = [ defaultLanguage ]
+      , durationUnit = du
+      }
+      -- , initialSizeCmd
+    , Cmd.batch
+        [ Task.perform (\size -> sizeToMsg (round size.viewport.width) (round size.viewport.height)) Browser.Dom.getViewport
+        , loadManCmd
+        , loadTransCmd
+        ]
+    )
 
 
 view : Model -> { title : String, body : List (Html.Html Msg) }
@@ -236,38 +277,7 @@ view model =
                     ]
 
             Settings ->
-                Html.div []
-                    [ Html.div
-                        [ HA.class "modal-background"
-                        , Html.Events.onClick (ShowModal None)
-                        ]
-                        []
-                    , Html.div
-                        [ HA.class "modal settings" ]
-                        [ Html.button [ HA.class "close-button", Html.Events.onClick (ShowModal None) ]
-                            [ Phosphor.x Bold
-                                |> Phosphor.withSize 14
-                                |> Phosphor.withSizeUnit "px"
-                                |> Phosphor.toHtml [ HA.style "vertical-align" "sub" ]
-                            ]
-                        , Html.h1 [] [ Html.text (T.settings model.translations) ]
-                        , Html.label [] [ Html.text (T.timelineDirection model.translations) ]
-                        , Segment.radio UpdateDirection
-                            model.timelineState.direction
-                            [ { value = Horizontal, label = Html.text (T.horizontal model.translations) }
-                            , { value = Vertical, label = Html.text (T.vertical model.translations) }
-                            ]
-                        , Html.label [ HA.style "margin-top" "20px" ]
-                            [ Html.input
-                                [ HA.type_ "checkbox"
-                                , HA.checked model.timelineState.wrapText
-                                , Html.Events.onCheck UpdateWrap
-                                ]
-                                []
-                            , Html.text (T.wrapText model.translations)
-                            ]
-                        ]
-                    ]
+                settingsView model
 
             None ->
                 Html.text ""
@@ -317,6 +327,48 @@ view model =
     }
 
 
+settingsView : Model -> Html.Html Msg
+settingsView model =
+    Html.div []
+        [ Html.div
+            [ HA.class "modal-background"
+            , Html.Events.onClick (ShowModal None)
+            ]
+            []
+        , Html.div
+            [ HA.class "modal settings" ]
+            [ Html.button [ HA.class "close-button", Html.Events.onClick (ShowModal None) ]
+                [ Phosphor.x Bold
+                    |> Phosphor.withSize 14
+                    |> Phosphor.withSizeUnit "px"
+                    |> Phosphor.toHtml [ HA.style "vertical-align" "sub" ]
+                ]
+            , Html.h1 [] [ Html.text (T.settings model.translations) ]
+            , Html.label [] [ Html.text (T.timeUnit model.translations) ]
+            , Segment.radio UpdateDurationUnit
+                model.durationUnit
+                [ { value = Hours, label = Html.text (T.hours model.translations) }
+                , { value = Minutes, label = Html.text (T.minutes model.translations) }
+                ]
+            , Html.label [ HA.style "margin-top" "20px" ] [ Html.text (T.timelineDirection model.translations) ]
+            , Segment.radio UpdateDirection
+                model.timelineState.direction
+                [ { value = Horizontal, label = Html.text (T.horizontal model.translations) }
+                , { value = Vertical, label = Html.text (T.vertical model.translations) }
+                ]
+            , Html.label [ HA.style "margin-top" "20px" ]
+                [ Html.input
+                    [ HA.type_ "checkbox"
+                    , HA.checked model.timelineState.wrapText
+                    , Html.Events.onCheck UpdateWrap
+                    ]
+                    []
+                , Html.text (T.wrapText model.translations)
+                ]
+            ]
+        ]
+
+
 languageFromFlags : Value -> String
 languageFromFlags flags =
     let
@@ -345,6 +397,43 @@ startDateFromFlags flags =
             Time.millisToPosix 1735686000000
 
 
+durationUnitFromFlags : Value -> DurationUnit
+durationUnitFromFlags flags =
+    let
+        result =
+            Decode.decodeValue (Decode.field "durationUnit" Decode.string) flags
+    in
+    case result of
+        Ok "Hours" ->
+            Hours
+
+        Ok "Minutes" ->
+            Minutes
+
+        _ ->
+            Hours
+
+
+secondsForDurationUnit : DurationUnit -> Float
+secondsForDurationUnit du =
+    case du of
+        Hours ->
+            3600
+
+        Minutes ->
+            60
+
+
+msForDurationUnit : DurationUnit -> Float
+msForDurationUnit du =
+    case du of
+        Hours ->
+            3600000
+
+        Minutes ->
+            60000
+
+
 inspectorView : Model -> Dict String ( Field, FieldState ) -> Html.Html Msg
 inspectorView model =
     fieldsView Inspector model
@@ -360,8 +449,7 @@ inspectorView model =
             , HA.style "font-size" "12px"
             , HA.style "overflow-y" "scroll"
             , HA.style "z-index" "2"
-
-            -- , HA.style "box-shadow" "grey 1px 0px 14px"
+            , HA.style "box-shadow" "rgba(0,0,0,0.1) 1px 0px 14px"
             , HA.style "border-left" "1px solid #DDD"
             , HA.style "padding" "10px"
             ]
@@ -379,7 +467,7 @@ fieldsView v ({ translations } as model) fields =
                 |> List.filterMap (\id -> Dict.get id model.records)
 
         cumul =
-            (List.map .amplitude records |> List.sum) / 3600
+            (List.map .amplitude records |> List.sum) / secondsForDurationUnit model.durationUnit
 
         maybeStart =
             List.map .date records |> List.minimum
@@ -388,7 +476,7 @@ fieldsView v ({ translations } as model) fields =
             List.map (\r -> r.date + (r.amplitude * 1000 |> round)) records |> List.maximum
 
         amplitude =
-            Maybe.map2 (\start end -> toFloat (end - start) / 3600000) maybeStart maybeEnd |> Maybe.withDefault 0
+            Maybe.map2 (\start end -> toFloat (end - start) / msForDurationUnit model.durationUnit) maybeStart maybeEnd |> Maybe.withDefault 0
 
         drawChoices =
             \field choices ->
@@ -460,25 +548,51 @@ fieldsView v ({ translations } as model) fields =
             |> Html.text
             |> List.singleton
             |> Html.div []
-        , T.cumulativeDuration translations
-            ++ ((cumul * 10 / 24 |> round |> toFloat) / 10 |> String.fromFloat)
-            ++ " "
-            ++ T.daysShort translations
-            ++ " / "
-            ++ (cumul |> String.fromFloat)
-            ++ " "
-            ++ T.hoursShort translations
+        , (case model.durationUnit of
+            Hours ->
+                T.cumulativeDuration translations
+                    ++ ((cumul * 10 / 24 |> round |> toFloat) / 10 |> String.fromFloat)
+                    ++ " "
+                    ++ T.daysShort translations
+                    ++ " / "
+                    ++ (cumul |> String.fromFloat)
+                    ++ " "
+                    ++ T.hoursShort translations
+
+            Minutes ->
+                T.cumulativeDuration translations
+                    ++ ((cumul * 10 / 60 |> round |> toFloat) / 10 |> String.fromFloat)
+                    ++ " "
+                    ++ T.hoursShort translations
+                    ++ " / "
+                    ++ (cumul |> String.fromFloat)
+                    ++ " "
+                    ++ T.minutesShort translations
+          )
             |> Html.text
             |> List.singleton
             |> Html.div []
-        , T.timeRange translations
-            ++ String.fromFloat ((amplitude * 10 / 24 |> round |> toFloat) / 10)
-            ++ " "
-            ++ T.daysShort translations
-            ++ " / "
-            ++ String.fromFloat amplitude
-            ++ " "
-            ++ T.hoursShort translations
+        , (case model.durationUnit of
+            Hours ->
+                T.timeRange translations
+                    ++ String.fromFloat ((amplitude * 10 / 24 |> round |> toFloat) / 10)
+                    ++ " "
+                    ++ T.daysShort translations
+                    ++ " / "
+                    ++ String.fromFloat amplitude
+                    ++ " "
+                    ++ T.hoursShort translations
+
+            Minutes ->
+                T.timeRange translations
+                    ++ String.fromFloat ((amplitude * 10 / 60 |> round |> toFloat) / 10)
+                    ++ " "
+                    ++ T.hoursShort translations
+                    ++ " / "
+                    ++ String.fromFloat amplitude
+                    ++ " "
+                    ++ T.minutesShort translations
+          )
             |> Html.text
             |> List.singleton
             |> Html.div []
@@ -505,7 +619,25 @@ fieldsView v ({ translations } as model) fields =
                 |> List.map
                     (\field ->
                         Html.div [ HA.class "field" ]
-                            [ Html.label [ HA.for field.name ] [ Html.text field.label ]
+                            [ Html.label [ HA.for field.name ]
+                                [ Html.text field.label
+                                , if field.field.id == dureeFieldId then
+                                    Html.span [ HA.class "unit" ]
+                                        [ Html.text <|
+                                            " ("
+                                                ++ (case model.durationUnit of
+                                                        Hours ->
+                                                            T.hoursShort translations
+
+                                                        Minutes ->
+                                                            T.minutesShort translations
+                                                   )
+                                                ++ ")"
+                                        ]
+
+                                  else
+                                    Html.text ""
+                                ]
                             , case field.field.ofType of
                                 Field.Choice choices ->
                                     drawChoices field choices
@@ -698,6 +830,7 @@ update msg model =
                                 |> Timeline.changeDirection options.direction
                                 |> Timeline.setWrapText options.wrapText
                         , options = options
+                        , durationUnit = options.durationUnit
                       }
                     , Cmd.none
                     )
@@ -740,13 +873,13 @@ update msg model =
 
                             else
                                 model.focus
-                        , groupsField = updateGroupsField model.timelineState.zone model.translations field str model.groupsField
+                        , groupsField = updateGroupsField model.timelineState.zone model.translations model.durationUnit field str model.groupsField
                       }
                     , Cmd.none
                     )
 
         CreateNew ->
-            case validateNewMoment model.timelineState.zone model.groupsField of
+            case validateNewMoment model.timelineState.zone model.durationUnit model.groupsField of
                 Just cmd ->
                     ( { model | showModal = None }, cmd )
 
@@ -762,7 +895,7 @@ update msg model =
                                 (Maybe.andThen
                                     (\val ->
                                         Dict.singleton field val
-                                            |> fieldsFromSelection model.timelineState.zone model.translations model.timelineState.selection model.records
+                                            |> fieldsFromSelection model.timelineState.zone model.translations model.durationUnit model.timelineState.selection model.records
                                             |> Dict.get field
                                     )
                                 )
@@ -917,6 +1050,19 @@ update msg model =
             , Bounce.delay 500 OptionsBounceMsg
             )
 
+        UpdateDurationUnit du ->
+            let
+                options =
+                    model.options
+            in
+            ( { model
+                | durationUnit = du
+                , options = { options | durationUnit = du }
+                , fields = fieldsFromSelection model.timelineState.zone model.translations du model.timelineState.selection model.records model.fields
+              }
+            , Bounce.delay 500 OptionsBounceMsg
+            )
+
 
 timelineUpdate : Timeline.Msg -> Model -> ( Model, Cmd Msg )
 timelineUpdate tmsg model =
@@ -1021,7 +1167,7 @@ timelineUpdate tmsg model =
         ( modal, groupsField ) =
             case action of
                 Timeline.Action.CreateSection Nothing start end ->
-                    ( New, fieldsFromDates model.timelineState.zone model.translations start end model.groupsField )
+                    ( New, fieldsFromDates model.timelineState.zone model.translations model.durationUnit start end model.groupsField )
 
                 _ ->
                     ( model.showModal, model.groupsField )
@@ -1044,6 +1190,7 @@ timelineUpdate tmsg model =
                         )
                         model.timelineState.direction
                         model.timelineState.wrapText
+                        model.durationUnit
 
                 _ ->
                     model.options
@@ -1054,7 +1201,7 @@ timelineUpdate tmsg model =
                         model.fields
 
                     else
-                        fieldsFromSelection model.timelineState.zone model.translations sel model.records model.fields
+                        fieldsFromSelection model.timelineState.zone model.translations model.durationUnit sel model.records model.fields
 
                 _ ->
                     model.fields
@@ -1144,7 +1291,7 @@ receiveData data model =
                 , fields =
                     List.indexedMap (\pos field -> ( field.id, ( { field | position = pos }, Error NoSelection "" ) )) editable
                         |> Dict.fromList
-                        |> fieldsFromSelection model.timelineState.zone model.translations newtl.selection recs
+                        |> fieldsFromSelection model.timelineState.zone model.translations model.durationUnit newtl.selection recs
                 , groupsField =
                     groupsFiltered
                         |> List.indexedMap (\pos field -> ( field.id, ( { field | position = pos }, Error NoSelection "" ) ))
@@ -1231,7 +1378,7 @@ makeFieldUpdate model field str =
                 in
                 modifyRecordsDuree
                     { ids = selSet |> Set.toList |> List.filterMap String.toInt
-                    , setDuree = float * 3600
+                    , setDuree = float * secondsForDurationUnit model.durationUnit
                     }
 
             _ ->
@@ -1256,8 +1403,8 @@ makeFieldUpdate_ sel field value =
         |> updateField
 
 
-fieldsFromDates : Time.Zone -> List I18Next.Translations -> Time.Posix -> Time.Posix -> Dict String ( Field, FieldState ) -> Dict String ( Field, FieldState )
-fieldsFromDates zone trans debut fin fields =
+fieldsFromDates : Time.Zone -> List I18Next.Translations -> DurationUnit -> Time.Posix -> Time.Posix -> Dict String ( Field, FieldState ) -> Dict String ( Field, FieldState )
+fieldsFromDates zone trans durationUnit debut fin fields =
     let
         debutVal =
             debut |> Iso8601.toDateTimeString zone |> Val
@@ -1266,7 +1413,7 @@ fieldsFromDates zone trans debut fin fields =
             fin |> Iso8601.toDateTimeString zone |> Val
 
         dureeVal =
-            Val (String.fromFloat (toFloat (Moment.durationBetween debut fin |> Moment.fromDuration) / 3600000))
+            Val (String.fromFloat (toFloat (Moment.durationBetween debut fin |> Moment.fromDuration) / msForDurationUnit durationUnit))
     in
     fields
         |> Dict.insert debutFieldId ( debutField trans, debutVal )
@@ -1283,8 +1430,8 @@ fieldStateToMaybe fs =
             Nothing
 
 
-updateGroupsField : Time.Zone -> List I18Next.Translations -> String -> String -> Dict String ( Field, FieldState ) -> Dict String ( Field, FieldState )
-updateGroupsField zone trans field str fields =
+updateGroupsField : Time.Zone -> List I18Next.Translations -> DurationUnit -> String -> String -> Dict String ( Field, FieldState ) -> Dict String ( Field, FieldState )
+updateGroupsField zone trans durationUnit field str fields =
     let
         resdebut =
             Dict.get debutFieldId fields
@@ -1301,7 +1448,7 @@ updateGroupsField zone trans field str fields =
             ( Ok debut, Just fin ) ->
                 let
                     dureeVal =
-                        Val (String.fromFloat (toFloat (Moment.durationBetween debut fin |> Moment.fromDuration) / 3600000))
+                        Val (String.fromFloat (toFloat (Moment.durationBetween debut fin |> Moment.fromDuration) / msForDurationUnit durationUnit))
                 in
                 Dict.insert dureeFieldId ( dureeField trans, dureeVal ) fields
 
@@ -1313,7 +1460,7 @@ updateGroupsField zone trans field str fields =
             ( Just debut, Ok fin ) ->
                 let
                     dureeVal =
-                        Val (String.fromFloat (toFloat (Moment.durationBetween debut fin |> Moment.fromDuration) / 3600000))
+                        Val (String.fromFloat (toFloat (Moment.durationBetween debut fin |> Moment.fromDuration) / msForDurationUnit durationUnit))
                 in
                 Dict.insert dureeFieldId ( dureeField trans, dureeVal ) fields
 
@@ -1325,7 +1472,7 @@ updateGroupsField zone trans field str fields =
             ( Just debut, Just duree ) ->
                 let
                     finVal =
-                        Time.posixToMillis debut + (duree * 3600000 |> round) |> Time.millisToPosix |> Iso8601.toDateTimeString zone |> Val
+                        Time.posixToMillis debut + (duree * msForDurationUnit durationUnit |> round) |> Time.millisToPosix |> Iso8601.toDateTimeString zone |> Val
                 in
                 Dict.insert finFieldId ( finField trans, finVal ) fields
 
@@ -1336,8 +1483,8 @@ updateGroupsField zone trans field str fields =
         fields
 
 
-validateNewMoment : Time.Zone -> Dict String ( Field, FieldState ) -> Maybe (Cmd Msg)
-validateNewMoment zone fields =
+validateNewMoment : Time.Zone -> DurationUnit -> Dict String ( Field, FieldState ) -> Maybe (Cmd Msg)
+validateNewMoment zone durationUnit fields =
     let
         mbdebut =
             Dict.get debutFieldId fields
@@ -1370,7 +1517,7 @@ validateNewMoment zone fields =
 
                     -- , date = Iso8601.toDateTimeString model.timelineState.zone from
                     , date = Iso8601.toDateTimeString zone debut
-                    , duree = duree * 3600 |> round
+                    , duree = duree * secondsForDurationUnit durationUnit |> round
                     }
             in
             Just (createRecord args)
@@ -1380,8 +1527,8 @@ validateNewMoment zone fields =
             Nothing
 
 
-fieldsFromSelection : Time.Zone -> List I18Next.Translations -> Timeline.Models.Selection -> Dict String Record -> Dict String ( Field, FieldState ) -> Dict String ( Field, FieldState )
-fieldsFromSelection zone trans selids allRecords fields =
+fieldsFromSelection : Time.Zone -> List I18Next.Translations -> DurationUnit -> Timeline.Models.Selection -> Dict String Record -> Dict String ( Field, FieldState ) -> Dict String ( Field, FieldState )
+fieldsFromSelection zone trans durationUnit selids allRecords fields =
     let
         selSet =
             Timeline.Models.selectionToSet selids
@@ -1432,7 +1579,7 @@ fieldsFromSelection zone trans selids allRecords fields =
                     Error NoValue ""
 
                 [ duree ] ->
-                    Val (String.fromFloat (duree / 3600))
+                    Val (String.fromFloat (duree / secondsForDurationUnit durationUnit))
 
                 _ ->
                     Multi
@@ -1709,7 +1856,14 @@ recordDecoder =
     Decode.succeed Record
         |> required "id" Decode.int
         |> required "date" (DecodeX.datetime |> Decode.map Time.posixToMillis)
-        |> (required "duree" <| Decode.oneOf [ Decode.float |> Decode.map ((*) 3600), Decode.null 25200 ])
+        |> (required "duree" <|
+                Decode.oneOf
+                    [ Decode.float
+
+                    {- |> Decode.map ((*) 3600) -}
+                    , Decode.null 25200
+                    ]
+           )
         |> required "groupe" anyDecoder
         |> required "groupeId" anyDecoder
         |> optional "sousGroupe" (Decode.string |> Decode.map Just) Nothing
@@ -1738,6 +1892,7 @@ type alias Options =
     , lineSize : Float
     , direction : Direction
     , wrapText : Bool
+    , durationUnit : DurationUnit
     }
 
 
@@ -1750,6 +1905,7 @@ optionsDecoder =
         |> optional "lineSize" Decode.float 38
         |> optional "direction" directionDecoder Horizontal
         |> optional "wrapText" Decode.bool False
+        |> optional "durationUnit" durationUnitDecoder Hours
 
 
 encodeOptions : Options -> Value
@@ -1761,6 +1917,7 @@ encodeOptions options =
         , ( "lineSize", Encode.float options.lineSize )
         , ( "direction", encodeDirection options.direction )
         , ( "wrapText", Encode.bool options.wrapText )
+        , ( "durationUnit", encodeDurationUnit options.durationUnit )
         ]
 
 
@@ -1838,6 +1995,10 @@ input[type="checkbox"] {
     font-size: 10px;
     color: #262626;
     display: block;
+
+    .unit {
+        text-transform: none;
+    }
 }
 
 .field > input {
