@@ -54,7 +54,13 @@ window.addEventListener('load', async (event) => {
 
   await translatePage();
 
-  app = Elm.Widget.init({ flags: { language: getLanguage(), startDate: (new Date()).valueOf() - 86400000 } });
+  app = Elm.Widget.init({
+    flags: {
+      language: getLanguage(),
+      startDate: (new Date()).valueOf() - 86400000,
+      durationUnit: timeUnit
+    }
+  });
 
   app.ports.updateOptions.subscribe(opts => {
     options = opts;
@@ -88,7 +94,7 @@ window.addEventListener('load', async (event) => {
               } else {
                 return {
                   id,
-                  duree: (change.setDuree / 3600)
+                  duree: (change.setDuree / timeFactor)
                 }
 
               }
@@ -106,7 +112,7 @@ window.addEventListener('load', async (event) => {
 
                 return {
                   id,
-                  duree: ((new Date(change.setFin)).valueOf() - (new Date(rec.date)).valueOf()) / 3600000
+                  duree: ((new Date(change.setFin)).valueOf() - (new Date(rec.date)).valueOf()) / (timeFactor * 1000)
                 }
 
               }
@@ -129,7 +135,7 @@ window.addEventListener('load', async (event) => {
                 return {
                   id,
                   date: newDate,
-                  duree: Math.max(1, (rec.duree ? rec.duree : 7) + (change.changeAmplitude / 3600))
+                  duree: Math.max(1, (rec.duree ? rec.duree : 7) + (change.changeAmplitude / timeFactor))
                 }
 
               }
@@ -202,7 +208,7 @@ window.addEventListener('load', async (event) => {
         rec.fin.setSeconds(rec.fin.getSeconds() + rec.duree);
         delete rec.duree;
       } else {
-        rec.duree = rec.duree / 3600;
+        rec.duree = rec.duree / timeFactor;
       }
 
       if (!isFormula[_mappings.groupe]) {
@@ -378,7 +384,7 @@ window.addEventListener('load', async (event) => {
             leftEvt = { id: id, fin: splitDate }
           } else {
 
-            const leftD = (splitDate - origDate) / 3600000;
+            const leftD = (splitDate - origDate) / (timeFactor * 1000);
             const rightD = rec.duree - leftD;
             if (!(leftD > 0 && rightD > 0)) continue;
             rightEvt = { date: splitDate, duree: rightD };
@@ -543,7 +549,7 @@ window.addEventListener('load', async (event) => {
         if (paramEndDate) {
           clone.duree = (rec.fin.valueOf() - rec.date.valueOf()) / 1000;
         } else {
-          clone.duree = clone.duree * 3600;
+          clone.duree = clone.duree * timeFactor;
         }
         clone.couleur = couleur?.choiceOptions?.[clone.couleur]?.fillColor;
         clone.groupeId = rawtable[mappings.groupe][rawtable.id.indexOf(rec.id)];
