@@ -571,15 +571,15 @@ window.addEventListener('load', async (event) => {
 
 
       const colMeta = await colTypesFetcher.getColMeta();
-      const editableTypes_ = mappings.fields.map(m => colMeta.find(cm => cm.colId === m && cm.isFormula === false))
+      const editableTypes_ = mappings.fields.map(m => colMeta.find(cm => cm.colId === m))
         .filter(v => v !== undefined)
       const editableTypes = await Promise.all(
         editableTypes_.map(populate));
       console.log("EDITABLE", editableTypes);
 
 
-      let groupeType = colMeta.find(cm => cm.colId === mappings.groupe && cm.isFormula === false);
-      let sousGroupeType = colMeta.find(cm => cm.colId === mappings.sousGroupe && cm.isFormula === false);
+      let groupeType = colMeta.find(cm => cm.colId === mappings.groupe);
+      let sousGroupeType = colMeta.find(cm => cm.colId === mappings.sousGroupe);
 
       if (groupeType)
         groupeType = await populate(groupeType);

@@ -501,6 +501,7 @@ fieldsView v ({ translations } as model) fields =
                         in
                         Select.view
                             (Select.single selectedItem
+                                |> Select.disabled field.field.isFormula
                                 |> Select.state selectState
                                 |> Select.menuItems
                                     (List.map
@@ -649,6 +650,7 @@ fieldsView v ({ translations } as model) fields =
                                     Html.textarea
                                         [ HA.name field.name
                                         , HA.id field.name
+                                        , HA.disabled field.field.isFormula
                                         , HA.rows 4
                                         , HA.cols 18
                                         , HA.placeholder
@@ -690,6 +692,7 @@ fieldsView v ({ translations } as model) fields =
                                     Html.input
                                         [ HA.name field.name
                                         , HA.id field.name
+                                        , HA.disabled field.field.isFormula
                                         , HA.placeholder
                                             (if field.multi then
                                                 "<multiple>"
