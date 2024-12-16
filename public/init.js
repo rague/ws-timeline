@@ -62,6 +62,19 @@ window.addEventListener('load', async (event) => {
     }
   });
 
+  app.ports.textSelectAndFocus.subscribe(id => {
+
+
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      if (el) {
+        if (el.select) el.select();
+        el.focus();
+      }
+    }, 30);
+
+  });
+
   app.ports.updateOptions.subscribe(opts => {
     options = opts;
 

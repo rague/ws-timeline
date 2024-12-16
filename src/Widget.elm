@@ -15,7 +15,7 @@ import Html.Styled.Attributes as SA
 import Http
 import I18Next
 import Iso8601
-import Json.Decode as Decode exposing (Decoder, Value)
+import Json.Decode as Decode exposing (Decoder, Value, maybe)
 import Json.Decode.Extra as DecodeX
 import Json.Decode.Pipeline exposing (optional, required)
 import Json.Encode as Encode
@@ -621,8 +621,8 @@ fieldsView v ({ translations } as model) fields =
                             _ ->
                                 { field = field, name = key, label = field.label, str = Nothing, multi = False, error = Just "Erreur" }
                     )
-                |> List.map
-                    (\field ->
+                |> List.indexedMap
+                    (\index field ->
                         Html.div [ HA.class "field" ]
                             [ Html.label [ HA.for field.name ]
                                 [ Html.text field.label
@@ -815,7 +815,12 @@ update msg model =
                         selection =
                             sectionIdsToSelection groups ids
                     in
-                    ( { model | timelineState = Timeline.Update.updateSelection selection model.timelineState }, Cmd.none )
+                    ( { model | timelineState = Timeline.Update.updateSelection selection model.timelineState }
+                    , Dict.keys model.fields
+                        |> List.head
+                        |> Maybe.map (\id -> Task.attempt (\_ -> NoOp) (Browser.Dom.focus id))
+                        |> Maybe.withDefault Cmd.none
+                    )
 
         ChangeOptions data ->
             case Decode.decodeValue optionsDecoder data of
@@ -1278,6 +1283,23 @@ receiveData data model =
                             Timeline.reinit groups model.timelineState
                                 |> Timeline.Update.updateSelection (sectionIdsToSelection groups sel)
 
+                fields =
+                    List.indexedMap (\pos field -> ( field.id, ( { field | position = pos }, Error NoSelection "" ) )) editable
+                        |> Dict.fromList
+                        |> fieldsFromSelection model.timelineState.zone model.translations model.durationUnit newtl.selection recs
+
+                cmd =
+                    if maybeSelection /= Nothing then
+                        Dict.toList fields
+                            |> List.sortBy (\( _, ( f, _ ) ) -> f.position)
+                            |> List.map Tuple.first
+                            |> ListX.getAt 3
+                            |> Maybe.map (\id -> textSelectAndFocus id)
+                            |> Maybe.withDefault Cmd.none
+
+                    else
+                        Cmd.none
+
                 recs =
                     List.map (\r -> ( String.fromInt r.id, r )) records |> Dict.fromList
 
@@ -1297,9 +1319,7 @@ receiveData data model =
                         newtl
                 , records = recs
                 , fields =
-                    List.indexedMap (\pos field -> ( field.id, ( { field | position = pos }, Error NoSelection "" ) )) editable
-                        |> Dict.fromList
-                        |> fieldsFromSelection model.timelineState.zone model.translations model.durationUnit newtl.selection recs
+                    fields
                 , groupsField =
                     groupsFiltered
                         |> List.indexedMap (\pos field -> ( field.id, ( { field | position = pos }, Error NoSelection "" ) ))
@@ -1319,8 +1339,9 @@ receiveData data model =
                         )
                         (groupsFiltered ++ editable)
                         |> Dict.fromList
+                , showInspector = maybeSelection /= Nothing
               }
-            , Cmd.none
+            , cmd
             )
 
 
@@ -1679,6 +1700,9 @@ sectionIdsToSelection groups ids =
         )
         Timeline.Models.emptySelection
         ids
+
+
+port textSelectAndFocus : String -> Cmd msg
 
 
 port setRecords : (Value -> msg) -> Sub msg
