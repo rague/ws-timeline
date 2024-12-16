@@ -244,8 +244,6 @@ window.addEventListener('load', async (event) => {
       grist.setSelectedRows(sel);
       newSelection = sel;
     } catch (err) {
-      // Nothing clever we can do here, just log the error.
-      // Grist should actually show the error in the UI, but it doesn't.
       console.error(err);
     }
   }
@@ -348,16 +346,12 @@ window.addEventListener('load', async (event) => {
 
       };
 
-      // console.log("clone", eventsInValidFormat);
-      // console.log(await grist.docApi.fetchTable(await grist.selectedTable.getTableId()));
       const table = await grist.getTable();
       newSelection = await table.create(eventsInValidFormat);
 
 
 
     } catch (err) {
-      // Nothing clever we can do here, just log the error.
-      // Grist should actually show the error in the UI, but it doesn't.
       sendError(err);
     }
   }
@@ -541,12 +535,9 @@ window.addEventListener('load', async (event) => {
     // console.log("MAPPED", mappedRecords);
     // if any records were successfully mapped, create or update them in the calendar
     if (mappedRecords) {
-      // const colTypes = await colTypesFetcher.getColTypes();
       const colOptions = await colTypesFetcher.getColOptions();
       const couleur = colOptions[mappings.couleur];
 
-      // let [,,groupe,couleur] = colOptions;
-      // let choice;
       let oneid;
       rawtable = await grist.selectedTable.getTableId().then(id => grist.docApi.fetchTable(id));
 
@@ -576,10 +567,6 @@ window.addEventListener('load', async (event) => {
 
         return clone;
       });
-
-
-      // grist.fetchSelectedRecord(oneid, {keepEncoded: true, includeColumns: "normal"}).then(rec => console.log("rec", rec));
-      // grist.selectedTable.getTableId().then(id => grist.docApi.fetchTable(id)).then(rec => console.log("rec", rec));
 
 
 
