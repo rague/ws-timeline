@@ -110,12 +110,13 @@ encodeChoiceId cid =
 
 decoder : ChoiceRecord -> Decoder Field
 decoder defaultChoice =
-    Decode.map4
-        (\id label ofType isFormula -> { id = id, label = label, ofType = ofType, isFormula = isFormula })
+    Decode.map5
+        (\id label ofType isFormula formula -> { id = id, label = label, ofType = ofType, isFormula = isFormula, formula = formula })
         (Decode.field "colId" Decode.string)
         (Decode.field "label" Decode.string)
         (fieldTypeDecoder defaultChoice)
         (Decode.field "isFormula" Decode.bool)
+        (Decode.field "formula" Decode.string)
         |> Decode.andThen
             (\f ->
                 Decode.map
@@ -125,7 +126,7 @@ decoder defaultChoice =
                         , position = 0
                         , ofType = f.ofType
                         , values = values
-                        , isFormula = f.isFormula
+                        , isFormula = f.isFormula && (not <| String.isEmpty f.formula)
                         }
                     )
                     (Decode.maybe (Decode.field "values" (valuesDecoderFor f.ofType))

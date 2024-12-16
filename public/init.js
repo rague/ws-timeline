@@ -76,7 +76,7 @@ window.addEventListener('load', async (event) => {
       const colTypes = await colTypesFetcher.getColTypes();
       const isFormula = await colTypesFetcher.getColIsFormula();
 
-      upsertGristRecord(
+      updateGristRecords(
         change.ids.map(id => {
           const rec = mappedRecords.find(r => r.id == id);
 
@@ -682,7 +682,7 @@ class ColTypesFetcher {
 
   async getColIsFormula() {
     return this._colTypesPromise.then(
-      types => Object.fromEntries(types.map(t => [t.colId, t?.isFormula]))
+      types => Object.fromEntries(types.map(t => [t.colId, t?.isFormula && (t?.formula?.length ?? 0) !== 0]))
     );
   }
 
@@ -726,10 +726,25 @@ async function upsertGristRecord(gristEvent) {
   }
 }
 
+
+async function updateGristRecords(gristEvents) {
+  try {
+    eventsInValidFormat = gristEvents.map(ev => makeEventInValidFormat(ev));
+    const table = await grist.getTable();
+    // console.log("updateGristRecords", eventsInValidFormat);
+
+    await table.update(eventsInValidFormat);
+
+  } catch (err) {
+    sendError(err);
+  }
+}
+
+
 function makeEventInValidFormat(gristEvent) {
   if (!_mappings) { return; }
 
-  id = gristEvent.id;
+  let id = gristEvent.id;
   delete gristEvent.id;
 
   const filteredRecord = Object.fromEntries(Object.entries(gristEvent)

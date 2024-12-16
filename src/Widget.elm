@@ -302,7 +302,11 @@ view model =
                             ]
                         , Html.h1 [] [ Html.text (T.newMoment model.translations) ]
                         , fieldsView NewMoment model model.groupsField
-                        , Html.button [ Html.Events.onClick CreateNew ] [ Html.text (T.create model.translations) ]
+                        , Html.button
+                            [ Html.Events.onClick CreateNew
+                            , HA.disabled (validateNewMoment model.timelineState.zone model.durationUnit model.groupsField == Nothing)
+                            ]
+                            [ Html.text (T.create model.translations) ]
                         ]
                     ]
         , if List.isEmpty model.error then
