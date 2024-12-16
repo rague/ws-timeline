@@ -76,7 +76,7 @@ window.addEventListener('load', async (event) => {
       const colTypes = await colTypesFetcher.getColTypes();
       const isFormula = await colTypesFetcher.getColIsFormula();
 
-      updateGristRecords(
+      upsertGristRecord(
         change.ids.map(id => {
           const rec = mappedRecords.find(r => r.id == id);
 
@@ -256,7 +256,7 @@ window.addEventListener('load', async (event) => {
       const table = await grist.getTable();
       await table.destroy(del.ids);
     } catch (err) {
-      console.error(err);
+      sendError(err);
     }
   }
   );
@@ -608,16 +608,6 @@ window.addEventListener('load', async (event) => {
     }
 
 
-    // const events = mappedRecords
-    //     .filter(isRecordValid)
-    //     .map(r => buildCalendarEventObject(r, colTypes, colOptions));
-    // calendarHandler.setEvents(new Map(events.map(event => ([event.id, event]))));
-    // updateUIAfterNavigation();
-    // }
-
-
-
-
   });
 
   grist.onOptions(opts => {
@@ -646,10 +636,7 @@ class ColTypesFetcher {
     const fields = Object.keys(columns);
     const tableRef = tables.id[tables.tableId.indexOf(tableId)];
 
-
-
     const colIndexes = columns.parentId.map((id, i) => [id, i]).filter(item => item[0] === tableRef).map(item => item[1]);
-
 
     const types = colIndexes.map(index => {
       // console.log(fields.map(f => [f, columns[f][index]]), Object.fromEntries(fields.map(f => [f, columns[f][index]])));
@@ -658,12 +645,6 @@ class ColTypesFetcher {
       return t;
     });
 
-
-    // const types= colIds.map(colId => {
-    //   const index = columns.id.findIndex((id, i) => (columns.parentId[i] === tableRef && columns.colId[i] === colId));
-    //   if (index === -1) { return null; }
-    //   return Object.fromEntries(fields.map(f => [f, columns[f][index]]));
-    // });
 
     // console.log("types", JSON.stringify(types));
     console.log("types", types);
@@ -676,9 +657,7 @@ class ColTypesFetcher {
     this._colTypesPromise = Promise.resolve([null, null]);
     this._accessLevel = 'full';
   }
-  setAccessLevel(accessLevel) {
-    this._accessLevel = accessLevel;
-  }
+
   gotMappings(mappings) {
     // Can't fetch metadata when no full access.
     if (this._accessLevel !== 'full') { return; }
@@ -755,23 +734,7 @@ async function upsertGristRecord(gristEvent) {
       return id;
     }
   } catch (err) {
-    // Nothing clever we can do here, just log the error.
-    // Grist should actually show the error in the UI, but it doesn't.
-    sendError(err);
-  }
-}
 
-async function updateGristRecords(gristEvents) {
-  try {
-    eventsInValidFormat = gristEvents.map(ev => makeEventInValidFormat(ev));
-    const table = await grist.getTable();
-    console.log("updateGristRecords", eventsInValidFormat);
-
-    await table.update(eventsInValidFormat);
-
-  } catch (err) {
-    // Nothing clever we can do here, just log the error.
-    // Grist should actually show the error in the UI, but it doesn't.
     sendError(err);
   }
 }
@@ -784,21 +747,11 @@ function makeEventInValidFormat(gristEvent) {
 
   const filteredRecord = Object.fromEntries(Object.entries(gristEvent)
     .map(([key, value]) => [_mappings[key], value]));
-  // console.log("makeEventInValidFormat MAPPED", filteredRecord);
+
   // Send nothing if there are no changes.
   if (Object.keys(filteredRecord).length === 0) { return; }
   return { id, fields: filteredRecord };
 
-}
-
-
-async function deleteEvent(event) {
-  try {
-    const table = await grist.getTable();
-    await table.destroy(event.id);
-  } catch (e) {
-    console.error(e);
-  }
 }
 
 function sendError(err) {
