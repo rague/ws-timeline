@@ -807,7 +807,7 @@ fieldsView v ({ translations } as model) fields =
                                             HA.class ""
                                         ]
                                         []
-                            , if selSize <= 1 then
+                            , if selSize <= 1 || field.field.id == dureeFieldId then
                                 Html.text ""
 
                               else
