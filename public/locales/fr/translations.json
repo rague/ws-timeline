@@ -25,5 +25,7 @@
     "vertical": "Vertical",
     "newMoment": "Nouveau moment",
     "create": "Créer",
-    "wrapText": "Retour à la ligne automatique pour le dernier contenu"
+    "wrapText": "Retour à la ligne automatique pour le dernier contenu",
+    "workingDays": "Jours de travail : ",
+    "sum": "Somme : "
 }

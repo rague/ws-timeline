@@ -113,6 +113,11 @@ subgroupBy translations =
     I18Next.tf translations "subgroupBy"
 
 
+sum : List I18Next.Translations -> String
+sum translations =
+    I18Next.tf translations "sum"
+
+
 timeRange : List I18Next.Translations -> String
 timeRange translations =
     I18Next.tf translations "timeRange"
@@ -131,6 +136,11 @@ timelineDirection translations =
 vertical : List I18Next.Translations -> String
 vertical translations =
     I18Next.tf translations "vertical"
+
+
+workingDays : List I18Next.Translations -> String
+workingDays translations =
+    I18Next.tf translations "workingDays"
 
 
 wrapText : List I18Next.Translations -> String

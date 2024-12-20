@@ -25,5 +25,7 @@
     "vertical": "Vertical",
     "newMoment": "New moment",
     "create": "Create",
-    "wrapText": "Wrap text of last content"
+    "wrapText": "Wrap text of last content",
+    "workingDays": "Working days: ",
+    "sum": "Sum : "
 }

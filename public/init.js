@@ -148,7 +148,7 @@ window.addEventListener('load', async (event) => {
                 return {
                   id,
                   date: newDate,
-                  duree: Math.max(1, (rec.duree ? rec.duree : 7) + (change.changeAmplitude / timeFactor))
+                  duree: (rec.duree ? rec.duree : 7) + (change.changeAmplitude / timeFactor)
                 }
 
               }

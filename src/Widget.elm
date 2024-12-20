@@ -5,6 +5,7 @@ import Browser
 import Browser.Dom
 import Browser.Events
 import Css
+import Date
 import Dict exposing (Dict)
 import Field exposing (Field)
 import Html
@@ -16,7 +17,7 @@ import Http
 import I18Next
 import Iso8601
 import Json.Decode as Decode exposing (Decoder, Value, maybe)
-import Json.Decode.Extra as DecodeX
+import Json.Decode.Extra as DecodeX exposing (dict2)
 import Json.Decode.Pipeline exposing (optional, required)
 import Json.Encode as Encode
 import List.Extra as ListX
@@ -485,6 +486,33 @@ fieldsView v ({ translations } as model) fields =
         amplitude =
             Maybe.map2 (\start end -> toFloat (end - start) / msForDurationUnit model.durationUnit) maybeStart maybeEnd |> Maybe.withDefault 0
 
+        workingDays =
+            List.foldl
+                (\rec dict ->
+                    let
+                        ratadie =
+                            Time.millisToPosix rec.date
+                                |> Date.fromPosix model.timelineState.zone
+                                |> Date.toRataDie
+
+                        wd =
+                            rec.amplitude / 86400 |> max 1 |> round
+                    in
+                    Dict.update (wrapGroupe rec)
+                        (\mbdict ->
+                            Dict.update ratadie (Maybe.map (max wd) >> Maybe.withDefault wd >> Just) (Maybe.withDefault Dict.empty mbdict)
+                                |> Just
+                        )
+                        dict
+                )
+                Dict.empty
+                records
+                |> Dict.foldl
+                    (\_ dict acc ->
+                        Dict.foldl (\_ days tot -> days + tot) acc dict
+                    )
+                    0
+
         drawChoices =
             \field choices ->
                 case Dict.get field.name model.selectStates of
@@ -601,6 +629,13 @@ fieldsView v ({ translations } as model) fields =
                     ++ " "
                     ++ T.minutesShort translations
           )
+            |> Html.text
+            |> List.singleton
+            |> Html.div []
+        , T.workingDays translations
+            ++ String.fromInt workingDays
+            ++ " "
+            ++ T.daysShort translations
             |> Html.text
             |> List.singleton
             |> Html.div []
@@ -772,6 +807,45 @@ fieldsView v ({ translations } as model) fields =
                                             HA.class ""
                                         ]
                                         []
+                            , if selSize <= 1 then
+                                Html.text ""
+
+                              else
+                                case field.field.ofType of
+                                    Field.Int _ _ ->
+                                        T.sum translations
+                                            ++ (List.foldl
+                                                    (\rec acc ->
+                                                        Dict.get field.field.id rec.fields
+                                                            |> Maybe.andThen String.toInt
+                                                            |> Maybe.withDefault 0
+                                                            |> (+) acc
+                                                    )
+                                                    0
+                                                    records
+                                                    |> String.fromInt
+                                               )
+                                            |> Html.text
+
+                                    Field.Float _ _ _ _ ->
+                                        let
+                                            float =
+                                                List.foldl
+                                                    (\rec acc ->
+                                                        Dict.get field.field.id rec.fields
+                                                            |> Maybe.andThen String.toFloat
+                                                            |> Maybe.withDefault 0
+                                                            |> (+) acc
+                                                    )
+                                                    0
+                                                    records
+                                        in
+                                        T.sum translations
+                                            ++ String.fromFloat ((float * 100 |> round |> toFloat) / 100)
+                                            |> Html.text
+
+                                    _ ->
+                                        Html.text ""
                             ]
                     )
                 |> Html.div []
@@ -1895,8 +1969,6 @@ recordDecoder =
         |> (required "duree" <|
                 Decode.oneOf
                     [ Decode.float
-
-                    {- |> Decode.map ((*) 3600) -}
                     , Decode.null 25200
                     ]
            )

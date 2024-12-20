@@ -32,10 +32,12 @@ defaultLanguage =
                 , ( "settings", I18Next.string "Settings" )
                 , ( "startDate", I18Next.string "Start date" )
                 , ( "subgroupBy", I18Next.string "Then group by" )
+                , ( "sum", I18Next.string "Sum : " )
                 , ( "timeRange", I18Next.string "Time range: " )
                 , ( "timeUnit", I18Next.string "Time unit" )
                 , ( "timelineDirection", I18Next.string "Timeline direction" )
                 , ( "vertical", I18Next.string "Vertical" )
+                , ( "workingDays", I18Next.string "Working days: " )
                 , ( "wrapText", I18Next.string "Wrap text of last content" )
                 ]
           )
