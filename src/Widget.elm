@@ -317,13 +317,13 @@ view model =
                 List.map
                     (\( iderr, err ) ->
                         Html.div [ HA.class "error" ]
-                            [ Html.text err
-                            , Html.button [ Html.Events.onClick (CloseError iderr) ]
+                            [ Html.button [ Html.Events.onClick (CloseError iderr) ]
                                 [ Phosphor.x Regular
                                     |> Phosphor.withSize 14
                                     |> Phosphor.withSizeUnit "px"
                                     |> Phosphor.toHtml [ HA.style "vertical-align" "sub" ]
                                 ]
+                            , Html.text err
                             ]
                     )
                     model.error
@@ -469,6 +469,9 @@ fieldsView v ({ translations } as model) fields =
             Timeline.Models.selectionToSet model.timelineState.selection
                 |> Set.toList
                 |> List.filterMap (\id -> Dict.get id model.records)
+
+        isLocked =
+            List.foldl (\rec bool -> rec.isLocked || bool) False records
 
         cumul =
             (List.map .amplitude records |> List.sum) / secondsForDurationUnit model.durationUnit
@@ -696,7 +699,7 @@ fieldsView v ({ translations } as model) fields =
                                     Html.input
                                         [ HA.name field.name
                                         , HA.id field.name
-                                        , HA.disabled field.field.isFormula
+                                        , HA.disabled (field.field.isFormula || isLocked)
                                         , HA.placeholder
                                             (if field.multi then
                                                 "<multiple>"
@@ -2110,12 +2113,13 @@ input[type="checkbox"] {
     position: absolute;
     bottom: 0;
     right: 0;
+    z-index: 200;
     
 }
 
 .error {
     background-color: #F00;
-    padding: 8px 4px 8px 16px;
+    padding: 8px 20px 8px 0px;
     margin: 5px;
     border: 1px solid #F00;
     font-family: sans-serif;

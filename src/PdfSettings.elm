@@ -477,7 +477,8 @@ type alias Model =
     , tables : List String
     , fields : Dict String (List Field)
     , form : SettingsForm
-    , error : Maybe String
+    , error : List ( Int, String )
+    , errorId : Int
     , zone : Time.Zone
     , language : String
     , translations : List I18Next.Translations
@@ -489,6 +490,18 @@ type alias Model =
     , filtersAddState : Select.State
     , filtersEdit : Maybe String
     }
+
+
+addError : String -> Model -> Model
+addError err model =
+    if ListX.find (\( _, e ) -> e == err) model.error == Nothing then
+        { model
+            | error = ( model.errorId, err ) :: List.take 4 model.error
+            , errorId = model.errorId + 1
+        }
+
+    else
+        model
 
 
 type Panel
@@ -605,13 +618,8 @@ init flags =
             Maybe.map (\table -> Dict.singleton table fields) settings.table
                 |> Maybe.withDefault Dict.empty
       , form = settingsToForm zone settings
-      , error =
-            case result of
-                Ok _ ->
-                    Nothing
-
-                Err err ->
-                    Decode.errorToString err |> Just
+      , error = []
+      , errorId = 0
       , zone = Time.utc
       , language = lang
       , translations = [ defaultLanguage ]
@@ -623,6 +631,13 @@ init flags =
       , filtersAddState = Select.initState (Select.selectIdentifier "filtersAddState")
       , filtersEdit = Nothing
       }
+        |> (case result of
+                Ok _ ->
+                    identity
+
+                Err err ->
+                    addError (Decode.errorToString err)
+           )
     , loadTransCmd
     )
 
@@ -815,6 +830,7 @@ type Msg
     | FilterAddValues String ValueSet
     | FilterRemoveValues String ValueSet
     | GotTranslations (Result Http.Error I18Next.Translations)
+    | CloseError Int
 
 
 updateSettings : Settings -> Model -> Model
@@ -861,13 +877,16 @@ update msg model =
             model.form
     in
     case msg of
+        CloseError id ->
+            ( { model | error = List.filter (\( iderr, _ ) -> iderr /= id) model.error }, Cmd.none )
+
         GotTranslations res ->
             case res of
                 Ok trans ->
                     ( { model | translations = trans :: model.translations }, Cmd.none )
 
                 Err _ ->
-                    ( { model | error = Just "Can't load translation file : Http error" }, Cmd.none )
+                    ( addError "Can't load translation file : Http error" model, Cmd.none )
 
         ReceiveData value ->
             let
@@ -1537,6 +1556,26 @@ view model =
                     Filters ->
                         filtersView model
                )
+            ++ (if List.isEmpty model.error then
+                    []
+
+                else
+                    List.map
+                        (\( iderr, err ) ->
+                            Html.div [ HA.class "error-item" ]
+                                [ Html.text err
+                                , Html.button [ HE.onClick (CloseError iderr) ]
+                                    [ Phosphor.x Regular
+                                        |> Phosphor.withSize 14
+                                        |> Phosphor.withSizeUnit "px"
+                                        |> Phosphor.toHtml [ HA.style "vertical-align" "sub" ]
+                                    ]
+                                ]
+                        )
+                        model.error
+                        |> Html.div [ HA.class "errors" ]
+                        |> List.singleton
+               )
         )
 
 
@@ -1577,9 +1616,7 @@ generalView ({ settings, form, translations } as model) =
                     |> Maybe.map .label
                     |> Maybe.withDefault key
     in
-    [ Maybe.map (\error -> Html.span [ HA.class "error" ] [ Html.text error ]) model.error
-        |> Maybe.withDefault (Html.text "")
-    , inputField [ HA.style "width" "100%", HA.style "max-width" "400px" ] "Titre" model.title UpdateTitle BlurTitle
+    [ inputField [ HA.style "width" "100%", HA.style "max-width" "400px" ] "Titre" model.title UpdateTitle BlurTitle
     , Html.hr [] []
     , section (T.data translations)
     , selectInput [ HA.style "max-width" "400px" ]
@@ -2374,6 +2411,29 @@ hr {
     }
 }
 
+.errors {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    
+}
 
+.error-item {
+    background-color: #F00;
+    padding: 8px 4px 8px 16px;
+    margin: 5px;
+    border: 1px solid #F00;
+    font-family: sans-serif;
+    font-size: 13px;
+    color: white;
+}
+
+.error-item button {
+    margin-left: 6px;
+    border: none;
+    font-size: 10px;
+    background: none;
+    color: white;
+}
 
 """
