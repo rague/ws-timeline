@@ -5,7 +5,7 @@ let app;
 let setRecordsArgs;
 const t = i18next.t;
 
-console.log("Base URI", document.baseURI);
+console.log("WS: Base URI", document.baseURI);
 
 function getLanguage() {
   if (this._lang) {
@@ -15,7 +15,7 @@ function getLanguage() {
     const urlParams = new URLSearchParams(queryString);
     // this._lang = (urlParams.get('language') ?? navigator.language ?? 'en');
     this._lang = navigator.language;
-    console.log("getLanguage() =>", this._lang);
+    console.log("WS: getLanguage() =>", this._lang);
     return this._lang;
   }
 }
@@ -84,7 +84,7 @@ window.addEventListener('load', async (event) => {
 
   app.ports.modifyRecords.subscribe(async change => {
 
-    console.log("MODIFY", change);
+    console.log("WS: MODIFY", change);
     try {
       const colTypes = await colTypesFetcher.getColTypes();
       const isFormula = await colTypesFetcher.getColIsFormula();
@@ -190,7 +190,7 @@ window.addEventListener('load', async (event) => {
   app.ports.updateField.subscribe(async change => {
     try {
       const table = await grist.getTable();
-      console.log("UPDATE FIELD", change);
+      console.log("WS: UPDATE FIELD", change);
 
       await table.update(
         change.ids.map(id => {
@@ -198,7 +198,7 @@ window.addEventListener('load', async (event) => {
           const o = { id };
           o.fields = {};
           o.fields[change.field] = change.value;
-          // console.log("UPD FIELD "+id, o);
+          // console.log("WS: UPD FIELD "+id, o);
           return o;
 
         })
@@ -417,7 +417,7 @@ window.addEventListener('load', async (event) => {
         }
       };
 
-      // console.log("split", updateR, createR);
+      // console.log("WS: split", updateR, createR);
       const table = await grist.getTable();
       await table.update(updateR);
       newSelection = await table.create(createR);
@@ -544,8 +544,8 @@ window.addEventListener('load', async (event) => {
 
 
     mappedRecords = grist.mapColumnNames(records, mappings);
-    console.log("MAPPINGS", mappings);
-    // console.log("MAPPED", mappedRecords);
+    console.log("WS: MAPPINGS", mappings);
+    // console.log("WS: MAPPED", mappedRecords);
     // if any records were successfully mapped, create or update them in the calendar
     if (mappedRecords) {
       const colOptions = await colTypesFetcher.getColOptions();
@@ -574,7 +574,7 @@ window.addEventListener('load', async (event) => {
 
         }
         clone.fields = Object.fromEntries(mappings.fields.map((key, idx) => [key, clone.fields[idx]]));
-        // console.log("FIELDS", clone.fields);
+        // console.log("WS: FIELDS", clone.fields);
 
         oneid = rec.id;
 
@@ -588,7 +588,7 @@ window.addEventListener('load', async (event) => {
         .filter(v => v !== undefined)
       const editableTypes = await Promise.all(
         editableTypes_.map(populate));
-      console.log("EDITABLE", editableTypes);
+      console.log("WS: EDITABLE", editableTypes);
 
 
       let groupeType = colMeta.find(cm => cm.colId === mappings.groupe);
@@ -601,7 +601,7 @@ window.addEventListener('load', async (event) => {
 
 
       setRecordsArgs = { rows: data, editable: editableTypes, group: groupeType, subgroup: sousGroupeType };
-      // console.log("RECORDARGS", setRecordsArgs);
+      // console.log("WS: RECORDARGS", setRecordsArgs);
       app.ports.setRecords.send(newSelection ? { rows: data, selection: newSelection, editable: editableTypes, group: groupeType, subgroup: sousGroupeType } : { rows: data, editable: editableTypes, group: groupeType, subgroup: sousGroupeType });
       if (newSelection) grist.setSelectedRows(newSelection);
       // newSelection = undefined;
@@ -646,8 +646,8 @@ class ColTypesFetcher {
     });
 
 
-    // console.log("types", JSON.stringify(types));
-    console.log("types", types);
+    // console.log("WS: types", JSON.stringify(types));
+    console.log("WS: types", types);
     return types;
   }
 
@@ -687,7 +687,7 @@ class ColTypesFetcher {
   }
 
   async getColOptions() {
-    // this._colTypesPromise.then((tp) => console.log("to",tp));
+    // this._colTypesPromise.then((tp) => console.log("WS: to",tp));
     return this._colTypesPromise.then(
       types => Object.fromEntries(types.map(t => [t.colId, t?.widgetOptions]))
     );
@@ -725,7 +725,7 @@ async function upsertGristRecord(gristEvent) {
 
 
     if (gristEvent.id) {
-      // console.log("upsertGristRecord", eventInValidFormat);
+      // console.log("WS: upsertGristRecord", eventInValidFormat);
 
       await table.update(eventInValidFormat);
     } else {
@@ -744,7 +744,7 @@ async function updateGristRecords(gristEvents) {
   try {
     eventsInValidFormat = gristEvents.map(ev => makeEventInValidFormat(ev));
     const table = await grist.getTable();
-    // console.log("updateGristRecords", eventsInValidFormat);
+    // console.log("WS: updateGristRecords", eventsInValidFormat);
 
     await table.update(eventsInValidFormat);
 
@@ -782,8 +782,8 @@ async function populate(f) {
       const table = await grist.docApi.fetchTable(f.type.substring(4));
       const columns = await grist.docApi.fetchTable('_grist_Tables_column');
       const index = columns.id.indexOf(f.visibleCol);
-      // console.log("TABLE", table);
-      // console.log("COLS", columns, f.visibleCol, index);
+      // console.log("WS: TABLE", table);
+      // console.log("WS: COLS", columns, f.visibleCol, index);
 
       if (index > -1) {
         col = columns.colId[index];
@@ -792,7 +792,7 @@ async function populate(f) {
       return f;
 
     } catch (err) {
-      console.log("ERRORERROR", err);
+      console.log("WS: ERRORERROR", err);
       return f;
     }
 
