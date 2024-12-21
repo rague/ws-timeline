@@ -95,6 +95,7 @@ type alias Model =
     , help : String
     , showModal : Modal
     , durationUnit : DurationUnit
+    , hasCreated : Bool
     }
 
 
@@ -219,6 +220,7 @@ init flags =
       , showModal = None
       , translations = [ defaultLanguage ]
       , durationUnit = du
+      , hasCreated = False
       }
       -- , initialSizeCmd
     , Cmd.batch
@@ -1252,7 +1254,7 @@ timelineUpdate tmsg model =
                                     g =
                                         unwrapGroupeId gid
                                 in
-                                ( model
+                                ( { model | hasCreated = True }
                                 , createRecord <|
                                     { groupeId = g.groupeId
                                     , sousGroupeId = g.sousGroupeId |> Maybe.withDefault ""
@@ -1416,7 +1418,7 @@ receiveData data model =
                         |> fieldsFromSelection model.timelineState.zone model.translations model.durationUnit newtl.selection recs
 
                 cmd =
-                    if maybeSelection /= Nothing then
+                    if maybeSelection /= Nothing && model.hasCreated then
                         Dict.toList fields
                             |> List.sortBy (\( _, ( f, _ ) ) -> f.position)
                             |> List.map Tuple.first
@@ -1466,7 +1468,8 @@ receiveData data model =
                         )
                         (groupsFiltered ++ editable)
                         |> Dict.fromList
-                , showInspector = Debug.log "WS: maybeSelection" maybeSelection /= Nothing
+                , showInspector = maybeSelection /= Nothing
+                , hasCreated = False
               }
             , cmd
             )
