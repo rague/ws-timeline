@@ -66,6 +66,7 @@ type Msg
     | UpdateDirection Direction
     | UpdateWrap Bool
     | UpdateDurationUnit DurationUnit
+    | UpdateUsage Bool
 
 
 type View
@@ -208,7 +209,7 @@ init flags =
       , bounce = Bounce.init
       , fields = Dict.empty
       , groupsField = Dict.empty
-      , options = Options (Time.millisToPosix 0) 0 0 38 Horizontal False du
+      , options = Options (Time.millisToPosix 0) 0 0 38 Horizontal False du False
       , records = Dict.empty
       , selectStates = Dict.empty
       , focus = ""
@@ -369,6 +370,15 @@ settingsView model =
                     ]
                     []
                 , Html.text (T.wrapText model.translations)
+                ]
+            , Html.label [ HA.style "margin-top" "20px" ]
+                [ Html.input
+                    [ HA.type_ "checkbox"
+                    , HA.checked model.options.displayUsage
+                    , Html.Events.onCheck UpdateUsage
+                    ]
+                    []
+                , Html.text "Display resource usage"
                 ]
             ]
         ]
@@ -918,6 +928,7 @@ update msg model =
                                     )
                                 |> Timeline.changeDirection options.direction
                                 |> Timeline.setWrapText options.wrapText
+                                |> Timeline.canEditSections (not options.displayUsage)
                         , options = options
                         , durationUnit = options.durationUnit
                       }
@@ -1140,6 +1151,19 @@ update msg model =
             , Bounce.delay 500 OptionsBounceMsg
             )
 
+        UpdateUsage bool ->
+            let
+                options =
+                    model.options
+            in
+            ( { model
+                | timelineState =
+                    Timeline.canEditSections (not bool) model.timelineState
+                , options = { options | displayUsage = bool }
+              }
+            , Bounce.delay 500 OptionsBounceMsg
+            )
+
         UpdateDurationUnit du ->
             let
                 options =
@@ -1258,6 +1282,7 @@ timelineUpdate tmsg model =
                                 model.timelineState.direction
                                 model.timelineState.wrapText
                                 model.durationUnit
+                                model.options.displayUsage
                       }
                     , Bounce.delay 500 OptionsBounceMsg
                     )
@@ -1314,12 +1339,12 @@ timelineUpdate tmsg model =
     in
     ( { modif
         | timelineState =
-            if groupFieldEditable then
-                state
-                    |> Timeline.applyAction action
+            case ( action, groupFieldEditable ) of
+                ( Timeline.Action.MoveSections _ _, False ) ->
+                    state
 
-            else
-                state
+                _ ->
+                    Timeline.applyAction action state
         , groupsField = groupsField
         , showModal = modal
         , showInspector =
@@ -1441,7 +1466,7 @@ receiveData data model =
                         )
                         (groupsFiltered ++ editable)
                         |> Dict.fromList
-                , showInspector = maybeSelection /= Nothing
+                , showInspector = Debug.log "WS: maybeSelection" maybeSelection /= Nothing
               }
             , cmd
             )
@@ -1978,7 +2003,7 @@ receiveDecoder : Decoder ReceiveData
 receiveDecoder =
     Decode.map5 ReceiveData
         (Decode.field "rows" <| Decode.list recordDecoder)
-        (Decode.maybe <| Decode.field "selection" (Decode.list (Decode.field "id" Decode.int)))
+        (Decode.maybe <| Decode.field "selection" (Decode.list Decode.int))
         (Decode.field "editable"
             (Decode.list (Field.decoder defaultChoice))
         )
@@ -2027,6 +2052,7 @@ type alias Options =
     , direction : Direction
     , wrapText : Bool
     , durationUnit : DurationUnit
+    , displayUsage : Bool
     }
 
 
@@ -2040,6 +2066,7 @@ optionsDecoder =
         |> optional "direction" directionDecoder Horizontal
         |> optional "wrapText" Decode.bool False
         |> optional "durationUnit" durationUnitDecoder Hours
+        |> optional "displayUsage" Decode.bool False
 
 
 encodeOptions : Options -> Value
@@ -2052,6 +2079,7 @@ encodeOptions options =
         , ( "direction", encodeDirection options.direction )
         , ( "wrapText", Encode.bool options.wrapText )
         , ( "durationUnit", encodeDurationUnit options.durationUnit )
+        , ( "displayUsage", Encode.bool options.displayUsage )
         ]
 
 

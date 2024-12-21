@@ -245,7 +245,8 @@ window.addEventListener('load', async (event) => {
       delete rec.sousGroupeId;
 
       let id = await upsertGristRecord(rec);
-      newSelection = id ? [{ id }] : undefined;
+      newSelection = id ? [id] : undefined;
+      // console.log("WS: createRecord newSelection", newSelection)
     } catch (err) {
       console.error(err);
     }
@@ -256,6 +257,7 @@ window.addEventListener('load', async (event) => {
     try {
       grist.setSelectedRows(sel);
       newSelection = sel;
+      // console.log("WS: selectRecords newSelection", newSelection)
     } catch (err) {
       console.error(err);
     }
@@ -360,7 +362,8 @@ window.addEventListener('load', async (event) => {
       };
 
       const table = await grist.getTable();
-      newSelection = await table.create(eventsInValidFormat);
+      newSelection = (await table.create(eventsInValidFormat)).map(item => item.id);
+      // console.log("WS: cloneRecords newSelection", newSelection);
 
 
 
@@ -420,7 +423,7 @@ window.addEventListener('load', async (event) => {
       // console.log("WS: split", updateR, createR);
       const table = await grist.getTable();
       await table.update(updateR);
-      newSelection = await table.create(createR);
+      newSelection = (await table.create(createR)).map(item => item.id);
 
     } catch (err) {
       // Nothing clever we can do here, just log the error.
@@ -602,9 +605,9 @@ window.addEventListener('load', async (event) => {
 
       setRecordsArgs = { rows: data, editable: editableTypes, group: groupeType, subgroup: sousGroupeType };
       // console.log("WS: RECORDARGS", setRecordsArgs);
+      // console.log("WS: newSelection", newSelection);
       app.ports.setRecords.send(newSelection ? { rows: data, selection: newSelection, editable: editableTypes, group: groupeType, subgroup: sousGroupeType } : { rows: data, editable: editableTypes, group: groupeType, subgroup: sousGroupeType });
       if (newSelection) grist.setSelectedRows(newSelection);
-      // newSelection = undefined;
     }
 
 
