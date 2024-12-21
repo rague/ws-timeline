@@ -1160,87 +1160,137 @@ timelineUpdate tmsg model =
         ( state, action, tcmd ) =
             Timeline.update tmsg model.timelineState model.box
 
-        cmd =
+        groupFieldEditable =
+            Dict.get groupFieldId model.groupsField
+                |> Maybe.map (\( field, _ ) -> not field.isFormula)
+                |> Maybe.withDefault False
+
+        ( modif, cmd ) =
             case action of
                 Timeline.Action.ModifySections ids ( addstart, addend ) ->
-                    modifyRecordsDelta
+                    ( model
+                    , modifyRecordsDelta
                         { ids = Timeline.Models.selectionToSet ids |> Set.toList |> List.filterMap String.toInt
                         , changeDebut = Moment.fromDuration addstart // 1000
                         , changeAmplitude = Moment.fromDuration addend // 1000
                         }
+                    )
 
                 Timeline.Action.CloneSections ids addstart mbgroup ->
                     let
                         mbg =
                             Maybe.map unwrapGroupeId mbgroup
                     in
-                    cloneRecords
+                    ( model
+                    , cloneRecords
                         { ids = Timeline.Models.selectionToSet ids |> Set.toList |> List.filterMap String.toInt
                         , changeDebut = Moment.fromDuration addstart // 1000
                         , groupeId = Maybe.map .groupeId mbg |> Maybe.withDefault ""
                         , sousGroupeId = Maybe.map (.sousGroupeId >> Maybe.withDefault "") mbg |> Maybe.withDefault ""
                         }
+                    )
 
                 Timeline.Action.DuplicateSections ids ->
-                    cloneRecords
+                    ( model
+                    , cloneRecords
                         { ids = Timeline.Models.selectionToSet ids |> Set.toList |> List.filterMap String.toInt
                         , changeDebut = 0
                         , groupeId = ""
                         , sousGroupeId = ""
                         }
+                    )
 
                 Timeline.Action.DeleteSections ids ->
-                    deleteRecords { ids = List.filterMap String.toInt ids }
+                    ( model, deleteRecords { ids = List.filterMap String.toInt ids } )
 
                 Timeline.Action.MoveSections ids gid ->
-                    let
-                        g =
-                            unwrapGroupeId gid
-                    in
-                    modifyRecordsGroup
-                        { ids = Timeline.Models.selectionToSet ids |> Set.toList |> List.filterMap String.toInt
-                        , groupeId = g.groupeId
-                        , sousGroupeId = g.sousGroupeId |> Maybe.withDefault ""
-                        }
+                    if groupFieldEditable then
+                        let
+                            g =
+                                unwrapGroupeId gid
+                        in
+                        ( model
+                        , modifyRecordsGroup
+                            { ids = Timeline.Models.selectionToSet ids |> Set.toList |> List.filterMap String.toInt
+                            , groupeId = g.groupeId
+                            , sousGroupeId = g.sousGroupeId |> Maybe.withDefault ""
+                            }
+                        )
+
+                    else
+                        ( addError "Group is not editable (formula column)" model, Cmd.none )
 
                 Timeline.Action.CreateSection maybe from to ->
-                    case maybe of
-                        Just gid ->
-                            let
-                                g =
-                                    unwrapGroupeId gid
-                            in
-                            createRecord <|
-                                { groupeId = g.groupeId
-                                , sousGroupeId = g.sousGroupeId |> Maybe.withDefault ""
-                                , date = Iso8601.toDateTimeString model.timelineState.zone from
-                                , duree = (Moment.durationBetween from to |> Moment.fromDuration) // 1000
-                                }
+                    if groupFieldEditable then
+                        case maybe of
+                            Just gid ->
+                                let
+                                    g =
+                                        unwrapGroupeId gid
+                                in
+                                ( model
+                                , createRecord <|
+                                    { groupeId = g.groupeId
+                                    , sousGroupeId = g.sousGroupeId |> Maybe.withDefault ""
+                                    , date = Iso8601.toDateTimeString model.timelineState.zone from
+                                    , duree = (Moment.durationBetween from to |> Moment.fromDuration) // 1000
+                                    }
+                                )
 
-                        Nothing ->
-                            Cmd.none
+                            Nothing ->
+                                ( model, Cmd.none )
 
-                Timeline.Action.ChangeZoom _ ->
-                    Bounce.delay 500 OptionsBounceMsg
+                    else
+                        ( addError "Group is not editable (formula column)" model, Cmd.none )
+
+                Timeline.Action.ChangeZoom { start, zoom, sectionOffsetY, lineSize } ->
+                    ( { model
+                        | options =
+                            Options start
+                                zoom
+                                sectionOffsetY
+                                (if state.direction == Vertical then
+                                    lineSize / 2
+
+                                 else
+                                    lineSize
+                                )
+                                model.timelineState.direction
+                                model.timelineState.wrapText
+                                model.durationUnit
+                      }
+                    , Bounce.delay 500 OptionsBounceMsg
+                    )
 
                 Timeline.Action.SelectSections sel ->
-                    Timeline.Models.selectionToSet sel
+                    ( { model
+                        | fields =
+                            if sel == model.timelineState.selection then
+                                model.fields
+
+                            else
+                                fieldsFromSelection model.timelineState.zone model.translations model.durationUnit sel model.records model.fields
+                      }
+                    , Timeline.Models.selectionToSet sel
                         |> Set.toList
                         |> List.filterMap String.toInt
                         |> selectRecords
+                    )
 
                 Timeline.Action.Split sel date ->
                     if selectionIsEmpty sel then
-                        Cmd.none
+                        ( model, Cmd.none )
 
                     else
-                        splitRecords
+                        ( model
+                        , splitRecords
                             { ids = Timeline.Models.selectionToSet sel |> Set.toList |> List.filterMap String.toInt
                             , date = Iso8601.toDateTimeString model.timelineState.zone date
                             }
+                        )
 
                 _ ->
-                    Cmd.none
+                    ( model, Cmd.none )
 
         updateFieldCmd =
             if String.isEmpty model.focus then
@@ -1262,39 +1312,14 @@ timelineUpdate tmsg model =
                 _ ->
                     ( model.showModal, model.groupsField )
     in
-    ( { model
+    ( { modif
         | timelineState =
-            state
-                |> Timeline.applyAction action
-        , options =
-            case action of
-                Timeline.Action.ChangeZoom { start, zoom, sectionOffsetY, lineSize } ->
-                    Options start
-                        zoom
-                        sectionOffsetY
-                        (if state.direction == Vertical then
-                            lineSize / 2
+            if groupFieldEditable then
+                state
+                    |> Timeline.applyAction action
 
-                         else
-                            lineSize
-                        )
-                        model.timelineState.direction
-                        model.timelineState.wrapText
-                        model.durationUnit
-
-                _ ->
-                    model.options
-        , fields =
-            case action of
-                Timeline.Action.SelectSections sel ->
-                    if sel == model.timelineState.selection then
-                        model.fields
-
-                    else
-                        fieldsFromSelection model.timelineState.zone model.translations model.durationUnit sel model.records model.fields
-
-                _ ->
-                    model.fields
+            else
+                state
         , groupsField = groupsField
         , showModal = modal
         , showInspector =
