@@ -1,10 +1,13 @@
-module Field exposing (ChoiceId(..), ChoiceRecord, Field, FieldType(..), NumberFormat(..), Values(..), choiceIdToRawString, choiceIdToString, decoder, encodeChoiceId, stringToChoiceId)
+module Field exposing (Align(..), ChoiceId(..), ChoiceRecord, Field, FieldType(..), NumSign(..), NumberFormat, NumberMode(..), Values(..), choiceIdToRawString, choiceIdToString, decoder, encodeChoiceId, floatToString, localeForLanguage, standardFloat, standardInt, stringToChoiceId)
 
 import Dict exposing (Dict)
+import FormatNumber as FNum
+import FormatNumber.Locales as FNL
 import Json.Decode as Decode exposing (Decoder, Value)
 import Json.Decode.Extra as DecodeX
 import Json.Decode.Pipeline exposing (hardcoded, optional, required)
 import Json.Encode as Encode
+import Money
 
 
 type alias Field =
@@ -23,8 +26,8 @@ type alias Field =
 
 type FieldType
     = Text Bool -- mulitligne
-    | Float NumberFormat Bool Int Int
-    | Int NumberFormat Bool
+    | Float NumberFormat
+    | Int NumberFormat
     | Bool
     | Date
     | DateTime
@@ -36,17 +39,47 @@ type FieldType
     | Unknow
 
 
+standardFloat =
+    Float { format = Standard, numSign = Minus, wrap = False, align = Right, decimals = Nothing, maxDecimals = Nothing }
+
+
+standardInt =
+    Int { format = Standard, numSign = Minus, wrap = False, align = Right, decimals = Nothing, maxDecimals = Nothing }
+
+
 type Values
     = ListInt (List { value : Int, label : String })
     | ListFloat (List { value : Float, label : String })
     | ListString (List { value : String, label : String })
 
 
-type NumberFormat
+type alias NumberFormat =
+    { format : NumberMode
+    , numSign : NumSign
+    , wrap : Bool
+    , align : Align
+    , decimals : Maybe Int
+    , maxDecimals : Maybe Int
+    }
+
+
+type NumberMode
     = Standard
-    | Currency String
+    | Currency Money.Currency
     | Thousands
-    | Exp
+    | Percent
+    | Scientific
+
+
+type Align
+    = Left
+    | Center
+    | Right
+
+
+type NumSign
+    = Minus
+    | Parens
 
 
 type alias ChoiceRecord =
@@ -73,7 +106,7 @@ choiceIdToString cid =
             str
 
         ChoiceInt int ->
-            "___Int:" ++ String.fromInt int
+            "_Int:" ++ String.fromInt int
 
 
 choiceIdToRawString : ChoiceId -> String
@@ -88,8 +121,8 @@ choiceIdToRawString cid =
 
 stringToChoiceId : String -> Maybe ChoiceId
 stringToChoiceId str =
-    if String.startsWith "___Int:" str then
-        String.dropLeft 7 str
+    if String.startsWith "_Int:" str then
+        String.dropLeft 5 str
             |> String.toInt
             |> Maybe.map ChoiceInt
 
@@ -149,10 +182,10 @@ valuesDecoderFor ofType =
         Text _ ->
             valuesDecoder Decode.string ListString
 
-        Float _ _ _ _ ->
+        Float _ ->
             valuesDecoder Decode.float ListFloat
 
-        Int _ _ ->
+        Int _ ->
             valuesDecoder Decode.int ListInt
 
         Bool ->
@@ -188,10 +221,10 @@ emptyValuesFor ofType =
         Text _ ->
             ListString []
 
-        Float _ _ _ _ ->
+        Float _ ->
             ListFloat []
 
-        Int _ _ ->
+        Int _ ->
             ListInt []
 
         Bool ->
@@ -248,10 +281,12 @@ fieldTypeDecoder defaultChoice =
                             Decode.oneOf [ Decode.at [ "widgetOptions", "wrap" ] Decode.bool, Decode.succeed False ]
 
                     "Numeric" ->
-                        Decode.succeed <| Float Standard False 0 10
+                        Decode.field "widgetOptions" numberFormatDecoder
+                            |> Decode.map Float
 
                     "Int" ->
-                        Decode.succeed <| Int Standard False
+                        Decode.field "widgetOptions" numberFormatDecoder
+                            |> Decode.map Int
 
                     "Bool" ->
                         Decode.succeed Bool
@@ -295,6 +330,79 @@ fieldTypeDecoder defaultChoice =
             )
 
 
+numberFormatDecoder : Decoder NumberFormat
+numberFormatDecoder =
+    Decode.map6 NumberFormat
+        (Decode.oneOf [ Decode.field "numMode" numberModeDecoder, Decode.succeed Standard ])
+        (Decode.oneOf [ Decode.field "numSign" numSignDecoder, Decode.succeed Minus ])
+        (Decode.oneOf [ Decode.field "wrap" Decode.bool, Decode.succeed False ])
+        (Decode.oneOf [ Decode.field "alignment" alignDecoder, Decode.succeed Right ])
+        (Decode.maybe (Decode.field "decimals" Decode.int))
+        (Decode.maybe (Decode.field "maxDecimals" Decode.int))
+
+
+numberModeDecoder : Decoder NumberMode
+numberModeDecoder =
+    Decode.string
+        |> Decode.andThen
+            (\str ->
+                case str of
+                    "currency" ->
+                        Decode.field "currency" Decode.string
+                            |> Decode.andThen
+                                (\s ->
+                                    case Money.fromString s of
+                                        Just cur ->
+                                            Decode.succeed (Currency cur)
+
+                                        Nothing ->
+                                            Decode.fail "Unknown currency"
+                                )
+
+                    "decimal" ->
+                        Decode.succeed Thousands
+
+                    "percent" ->
+                        Decode.succeed Percent
+
+                    "scientific" ->
+                        Decode.succeed Scientific
+
+                    _ ->
+                        Decode.succeed Standard
+            )
+
+
+numSignDecoder : Decoder NumSign
+numSignDecoder =
+    Decode.string
+        |> Decode.map
+            (\str ->
+                if str == "parens" then
+                    Parens
+
+                else
+                    Minus
+            )
+
+
+alignDecoder : Decoder Align
+alignDecoder =
+    Decode.string
+        |> Decode.map
+            (\str ->
+                case str of
+                    "left" ->
+                        Left
+
+                    "center" ->
+                        Center
+
+                    _ ->
+                        Right
+            )
+
+
 choicesDecoder : ChoiceRecord -> List String -> Decoder (Dict String ChoiceRecord)
 choicesDecoder defaultChoice keys =
     List.map (\key -> Decode.field key (choiceDecoder defaultChoice key)) keys
@@ -326,3 +434,76 @@ refDecoder defaultChoice =
         |> hardcoded defaultChoice.italic
         |> hardcoded defaultChoice.underline
         |> hardcoded defaultChoice.crossedOut
+
+
+localeForLanguage : String -> FNL.Locale
+localeForLanguage str =
+    case String.left 2 str |> String.toLower of
+        "fr" ->
+            FNL.frenchLocale
+
+        _ ->
+            FNL.usLocale
+
+
+floatToString : FNL.Locale -> NumberFormat -> Float -> String
+floatToString locale format float =
+    let
+        fper =
+            if format.format == Percent then
+                float * 100
+
+            else
+                float
+
+        float_ =
+            Maybe.map
+                (\d ->
+                    let
+                        pow =
+                            10 ^ toFloat d
+                    in
+                    (fper * pow |> round |> toFloat) / pow
+                )
+                format.maxDecimals
+                |> Maybe.withDefault fper
+    in
+    FNum.format
+        { locale
+            | decimals =
+                case format.decimals of
+                    Just d ->
+                        FNL.Min d
+
+                    Nothing ->
+                        locale.decimals
+            , negativePrefix =
+                if format.numSign == Parens then
+                    "("
+
+                else
+                    "-"
+            , negativeSuffix =
+                if format.numSign == Parens then
+                    ")"
+
+                else
+                    ""
+            , thousandSeparator =
+                if format.format == Standard then
+                    ""
+
+                else
+                    locale.thousandSeparator
+        }
+        float_
+        ++ (case format.format of
+                Currency cur ->
+                    " " ++ Money.toSymbol cur
+
+                Percent ->
+                    " %"
+
+                _ ->
+                    ""
+           )
