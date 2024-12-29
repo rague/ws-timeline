@@ -316,7 +316,7 @@ sectionsDown box { x, y, altKey, shiftKey, button } =
     case box.interaction of
         MouseOver _ ->
             if button == leftButton then
-                if altKey && ({- selectionIsEmpty box.selection || -} mbsec == Nothing) then
+                if altKey && (mbsec == Nothing) then
                     let
                         unit =
                             getUnit box.zoom
@@ -326,7 +326,11 @@ sectionsDown box { x, y, altKey, shiftKey, button } =
                     in
                     { box
                         | interaction =
-                            Draw snapx (Moment.addDurationToPosix snapx unit) (floor line)
+                            if box.canEditSections then
+                                Draw snapx (Moment.addDurationToPosix snapx unit) (floor line)
+
+                            else
+                                box.interaction
                     }
                         |> updateSelection emptySelection
                         |> selectAction
@@ -351,13 +355,13 @@ sectionsDown box { x, y, altKey, shiftKey, button } =
                                     else if (section :: selectedSections box) |> List.foldl (\s res -> res || s.isLocked) False then
                                         box.interaction
 
-                                    else if Moment.greaterThan posix (Moment.subtractDuration section.end margin) then
+                                    else if box.canEditSections && Moment.greaterThan posix (Moment.subtractDuration section.end margin) then
                                         ResizeRight ( posix, line ) <| Moment.toDuration 0
 
-                                    else if Moment.lessThan posix (Moment.addDurationToPosix section.start margin) then
+                                    else if box.canEditSections && Moment.lessThan posix (Moment.addDurationToPosix section.start margin) then
                                         ResizeLeft ( posix, line ) <| Moment.toDuration 0
 
-                                    else
+                                    else if box.canEditSections then
                                         Move
                                             (if altKey then
                                                 Clone
@@ -368,6 +372,9 @@ sectionsDown box { x, y, altKey, shiftKey, button } =
                                             sbox
                                             ( posix, line )
                                             ( Moment.toDuration 0, 0 )
+
+                                    else
+                                        box.interaction
                             }
                                 |> updateSelection
                                     (if shiftKey then

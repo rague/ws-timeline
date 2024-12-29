@@ -17,7 +17,7 @@ import Http
 import I18Next
 import Iso8601
 import Json.Decode as Decode exposing (Decoder, Value, maybe)
-import Json.Decode.Extra as DecodeX exposing (dict2)
+import Json.Decode.Extra as DecodeX
 import Json.Decode.Pipeline exposing (optional, required)
 import Json.Encode as Encode
 import List.Extra as ListX
@@ -671,8 +671,8 @@ fieldsView v ({ translations } as model) fields =
                             _ ->
                                 { field = field, name = key, label = field.label, str = Nothing, multi = False, error = Just "Erreur" }
                     )
-                |> List.indexedMap
-                    (\index field ->
+                |> List.map
+                    (\field ->
                         Html.div [ HA.class "field" ]
                             [ Html.label [ HA.for field.name ]
                                 [ Html.text field.label
@@ -746,7 +746,15 @@ fieldsView v ({ translations } as model) fields =
                                     Html.input
                                         [ HA.name field.name
                                         , HA.id field.name
-                                        , HA.disabled (field.field.isFormula || isLocked)
+                                        , HA.disabled
+                                            (field.field.isFormula
+                                                || (if field.field.id == debutFieldId || field.field.id == finFieldId || field.field.id == dureeFieldId then
+                                                        isLocked
+
+                                                    else
+                                                        False
+                                                   )
+                                            )
                                         , HA.placeholder
                                             (if field.multi then
                                                 "<multiple>"
@@ -763,8 +771,25 @@ fieldsView v ({ translations } as model) fields =
                                                 Field.Bool ->
                                                     "checkbox"
 
+                                                Field.Float _ ->
+                                                    "number"
+
+                                                Field.Int _ ->
+                                                    "number"
+
                                                 _ ->
                                                     "text"
+                                            )
+                                        , HA.style "text-align"
+                                            (case field.field.ofType of
+                                                Field.Float _ ->
+                                                    "right"
+
+                                                Field.Int _ ->
+                                                    "right"
+
+                                                _ ->
+                                                    "left"
                                             )
                                         , if field.field.ofType == Field.Bool then
                                             HA.checked (Maybe.map ((==) "true") field.str |> Maybe.withDefault False)
@@ -824,7 +849,7 @@ fieldsView v ({ translations } as model) fields =
 
                               else
                                 case field.field.ofType of
-                                    Field.Int _ _ ->
+                                    Field.Int _ ->
                                         T.sum translations
                                             ++ (List.foldl
                                                     (\rec acc ->
@@ -839,7 +864,7 @@ fieldsView v ({ translations } as model) fields =
                                                )
                                             |> Html.text
 
-                                    Field.Float _ _ _ _ ->
+                                    Field.Float _ ->
                                         let
                                             float =
                                                 List.foldl
@@ -1374,7 +1399,18 @@ receiveData : Value -> Model -> ( Model, Cmd Msg )
 receiveData data model =
     case Decode.decodeValue receiveDecoder data of
         Err err ->
-            ( addError (Decode.errorToString err) model, Cmd.none )
+            ( addError (Decode.errorToString err)
+                { model
+                    | timelineState = Timeline.reinit [] model.timelineState
+                    , records = Dict.empty
+                    , fields = Dict.empty
+                    , groupsField = Dict.empty
+                    , selectStates = Dict.empty
+                    , showInspector = False
+                    , hasCreated = False
+                }
+            , Cmd.none
+            )
 
         Ok { records, maybeSelection, editable, group, subgroup } ->
             let
@@ -1403,14 +1439,21 @@ receiveData data model =
                                 }
                             )
 
+                groupsUsage =
+                    if model.options.displayUsage then
+                        List.concatMap (\g -> [ { g | id = "_usage_" ++ g.id, sections = computeUsage g.sections }, g ]) groups
+
+                    else
+                        groups
+
                 newtl =
                     case maybeSelection of
                         Nothing ->
-                            Timeline.reinit groups model.timelineState
+                            Timeline.reinit groupsUsage model.timelineState
 
                         Just sel ->
-                            Timeline.reinit groups model.timelineState
-                                |> Timeline.Update.updateSelection (sectionIdsToSelection groups sel)
+                            Timeline.reinit groupsUsage model.timelineState
+                                |> Timeline.Update.updateSelection (sectionIdsToSelection groupsUsage sel)
 
                 fields =
                     List.indexedMap (\pos field -> ( field.id, ( { field | position = pos }, Error NoSelection "" ) )) editable
@@ -1473,6 +1516,47 @@ receiveData data model =
               }
             , cmd
             )
+
+
+computeUsage : List Timeline.Models.Section -> List Timeline.Models.Section
+computeUsage sections =
+    let
+        evol =
+            List.foldl (\s acc -> ( 1, Time.posixToMillis s.start ) :: ( -1, Time.posixToMillis s.end ) :: acc) [] sections
+                |> List.sortBy Tuple.second
+                |> ListX.groupWhile (\( _, a ) ( _, b ) -> a == b)
+                |> List.map (\( x, xs ) -> List.foldl (\( c1, date ) ( c2, _ ) -> ( c1 + c2, date )) x xs)
+    in
+    case evol of
+        x :: xs ->
+            let
+                ( _, list, _ ) =
+                    List.foldl
+                        (\( countN, next ) ( last, ls, ( qtt, id ) ) ->
+                            ( next
+                            , if qtt > 0 then
+                                { start = Time.millisToPosix last
+                                , end = Time.millisToPosix next
+                                , id = "_usage" ++ String.fromInt id
+                                , color = "#EEF"
+                                , isLocked = False
+                                , labels = [ String.fromInt qtt ]
+                                , hasComment = False
+                                }
+                                    :: ls
+
+                              else
+                                ls
+                            , ( qtt + countN, id + 1 )
+                            )
+                        )
+                        ( Tuple.second x, [], ( Tuple.first x, 0 ) )
+                        xs
+            in
+            List.reverse list
+
+        _ ->
+            sections
 
 
 makeFieldUpdate : Model -> String -> String -> Cmd Msg
@@ -1969,7 +2053,7 @@ dureeField trans =
     { id = dureeFieldId
     , label = T.duration trans
     , position = -5
-    , ofType = Field.Float Field.Standard False 0 2
+    , ofType = Field.standardFloat
     , values = Field.ListFloat []
     , isFormula = False
     }
@@ -2133,6 +2217,7 @@ anyDecoder =
                         "false"
                 )
         , Decode.null ""
+        , Decode.list (Decode.lazy (\_ -> anyDecoder)) |> Decode.map (String.join ", ")
         ]
 
 

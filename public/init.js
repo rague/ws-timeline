@@ -604,7 +604,7 @@ window.addEventListener('load', async (event) => {
 
 
       setRecordsArgs = { rows: data, editable: editableTypes, group: groupeType, subgroup: sousGroupeType };
-      // console.log("WS: RECORDARGS", setRecordsArgs);
+      console.log("WS: RECORDARGS", setRecordsArgs);
       // console.log("WS: newSelection", newSelection);
       app.ports.setRecords.send(newSelection ? { rows: data, selection: newSelection, editable: editableTypes, group: groupeType, subgroup: sousGroupeType } : { rows: data, editable: editableTypes, group: groupeType, subgroup: sousGroupeType });
       if (newSelection) grist.setSelectedRows(newSelection);

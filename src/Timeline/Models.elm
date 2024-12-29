@@ -301,6 +301,7 @@ type alias TimelineBox =
     , zone : Time.Zone
     , canSortGroups : Bool
     , canEditGroups : Bool
+    , canEditSections : Bool
     , wrapText : Bool
     , currentPosix : Posix
     }

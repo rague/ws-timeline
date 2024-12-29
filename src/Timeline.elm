@@ -1,4 +1,4 @@
-module Timeline exposing (Msg(..), applyAction, calcLayersSize, canEditGroups, canSortGroups, changeDirection, changeLineSize, changeStartAndZoom, changeYOffset, init, reinit, sectionsView, setLanguage, setWrapText, styles, subscriptions, update, view, zoomAllTime)
+module Timeline exposing (Msg(..), applyAction, calcLayersSize, canEditGroups, canEditSections, canSortGroups, changeDirection, changeLineSize, changeStartAndZoom, changeYOffset, init, reinit, sectionsView, setLanguage, setWrapText, styles, subscriptions, update, view, zoomAllTime)
 
 import Browser.Dom
 import Browser.Events
@@ -155,6 +155,7 @@ default posix =
     , zone = TimeZone.europe__paris ()
     , canSortGroups = True
     , canEditGroups = True
+    , canEditSections = True
     , wrapText = False
     , currentPosix = Time.millisToPosix 0
     }
@@ -462,6 +463,11 @@ canSortGroups b tl =
 canEditGroups : Bool -> TimelineBox -> TimelineBox
 canEditGroups b tl =
     { tl | canEditGroups = b }
+
+
+canEditSections : Bool -> TimelineBox -> TimelineBox
+canEditSections b tl =
+    { tl | canEditSections = b }
 
 
 changeDirection : Direction -> TimelineBox -> TimelineBox
@@ -2194,8 +2200,8 @@ update msg bb rect =
             noAction { box | interaction = MouseOver ( Time.millisToPosix -1, -1 ) }
 
         Keypress int ->
-            case int of
-                8 ->
+            case ( int, box.canEditSections ) of
+                ( 8, True ) ->
                     -- backspace
                     let
                         sections =
@@ -2203,17 +2209,17 @@ update msg bb rect =
                     in
                     ( updateSelection emptySelection { box | interaction = MouseOver ( Time.millisToPosix -1, -1 ) }, DeleteSections sections, Cmd.none )
 
-                68 ->
+                ( 68, True ) ->
                     -- "d"
                     ( box, DuplicateSections box.selection, Cmd.none )
 
-                78 ->
+                ( 78, _ ) ->
                     -- "n"
                     showDate box.currentPosix rect.width box
                         |> updateSelection emptySelection
                         |> selectAction
 
-                83 ->
+                ( 83, True ) ->
                     -- "s"
                     case box.interaction of
                         MouseOver ( time, _ ) ->
@@ -2222,7 +2228,7 @@ update msg bb rect =
                         _ ->
                             noAction box
 
-                90 ->
+                ( 90, _ ) ->
                     -- "z"
                     let
                         selection =
