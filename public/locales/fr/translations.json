@@ -7,8 +7,9 @@
     "color": "Couleur",
     "isLocked": "Est verrouillé",
     "comment": "Commentaire",
-    "content": "Contenu",
-    "editableColumns": "Colonnes éditables",
+    "content": "contenu",
+    "editableColumns": "colonnes éditables",
+    "totalColumns": "colonnes de totaux",
     "moment": "moment",
     "moment_plural": "moments",
     "cumulativeDuration": "Durée cumulée : ",
@@ -27,5 +28,8 @@
     "create": "Créer",
     "wrapText": "Retour à la ligne automatique pour le dernier contenu",
     "workingDays": "Jours de travail : ",
-    "sum": "Somme : "
+    "sum": "Somme : ",
+    "totals": "Totaux",
+    "countMoments": "Nombre de moments",
+    "displaySubtotals": "Afficher les sous-totaux"
 }

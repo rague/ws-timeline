@@ -32,6 +32,7 @@ import Timeline.Update exposing (..)
 import Timeline.Utils exposing (findSection)
 import Tuple exposing (first, second)
 import WebGL exposing (Mesh, Shader)
+import WebGL.Settings
 
 
 subscriptions : TimelineBox -> Sub Msg
@@ -376,6 +377,7 @@ toTimelineBox groups base =
                        , position = position
                        , size = size
                        , label = group.label
+                       , isSubtotal = group.isSubtotal
                        , sections =
                             List.map
                                 (\( s, level ) ->
@@ -1971,14 +1973,12 @@ fragmentShaderHoriz =
         }
         void main( ) {
 
-            
-
-
             // How soft the edges should be (in pixels). Higher values could be used to simulate a drop shadow.
             float edgeSoftness  = 1.0;
             
             // The radius of the corners (in pixels) clockwise starting in the top left.
-            vec4 radius =  hasPoint > 0.0 ? vec4(5.0, 4.0, 5.0, 5.0) : vec4(5.0);
+            vec4 radius =  (borderSize == 128.0) ? vec4(0.0)
+                    : (hasPoint > 0.0 ? vec4(5.0, 4.0, 5.0, 5.0) : vec4(5.0));
             
             // Calculate distance to edge.   
             vec2 center = gl_FragCoord.xy - ((location+vec2(1.0)) * iResolution.xy/2.0);
@@ -1989,7 +1989,7 @@ fragmentShaderHoriz =
             float smoothedAlpha =  1.0-smoothstep(0.0, edgeSoftness,distance);
             
             // Border.  
-            float borderThickness = borderSize;
+            float borderThickness = (borderSize == 128.0) ? 1.0 : borderSize;
             float borderSoftness  = 1.0;
             float borderAlpha     = 1.0-smoothstep(borderThickness - borderSoftness, borderThickness, abs(distance));
 
@@ -2002,7 +2002,7 @@ fragmentShaderHoriz =
 
             // Colors
             vec4 rectColor =  vcolor;
-            vec4 borderColor = bcolor;
+            vec4 borderColor = (borderSize == 128.0) ? vec4(0.4,0.4,0.4,1.0): bcolor;
             vec4 bgColor = vec4(1.0,1.0,1.0,0.0);
             
             vec4 rgba = mix(bgColor, mix(mix(rectColor, pointColor, pointAlpha), borderColor, borderAlpha), smoothedAlpha);
@@ -2041,14 +2041,12 @@ fragmentShaderVert =
         }
         void main( ) {
 
-            
-
-
             // How soft the edges should be (in pixels). Higher values could be used to simulate a drop shadow.
             float edgeSoftness  = 1.0;
             
             // The radius of the corners (in pixels) clockwise starting in the top left.
-            vec4 radius =  hasPoint > 0.0 ? vec4(5.0, 4.0, 5.0, 5.0) : vec4(5.0);
+            vec4 radius =  (borderSize == 128.0) ? vec4(0.0)
+                    : (hasPoint > 0.0 ? vec4(5.0, 4.0, 5.0, 5.0) : vec4(5.0));
             
             // Calculate distance to edge.   
             vec2 center = gl_FragCoord.xy - ((location+vec2(1.0)) * iResolution.xy/2.0);
@@ -2059,7 +2057,7 @@ fragmentShaderVert =
             float smoothedAlpha =  1.0-smoothstep(0.0, edgeSoftness,distance);
             
             // Border.  
-            float borderThickness = borderSize;
+            float borderThickness = (borderSize == 128.0) ? 1.0 : borderSize;
             float borderSoftness  = 1.0;
             float borderAlpha     = 1.0-smoothstep(borderThickness - borderSoftness, borderThickness, abs(distance));
 
@@ -2072,7 +2070,7 @@ fragmentShaderVert =
 
             // Colors
             vec4 rectColor =  vcolor;
-            vec4 borderColor = bcolor;
+            vec4 borderColor = (borderSize == 128.0) ? vec4(0.4,0.4,0.4,1.4): bcolor;
             vec4 bgColor = vec4(1.0,1.0,1.0,0.0);
             
             vec4 rgba = mix(bgColor, mix(mix(rectColor, pointColor, pointAlpha), borderColor, borderAlpha), smoothedAlpha);

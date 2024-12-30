@@ -23,6 +23,11 @@ content translations =
     I18Next.tf translations "content"
 
 
+countMoments : List I18Next.Translations -> String
+countMoments translations =
+    I18Next.tf translations "countMoments"
+
+
 create : List I18Next.Translations -> String
 create translations =
     I18Next.tf translations "create"
@@ -36,6 +41,11 @@ cumulativeDuration translations =
 daysShort : List I18Next.Translations -> String
 daysShort translations =
     I18Next.tf translations "daysShort"
+
+
+displaySubtotals : List I18Next.Translations -> String
+displaySubtotals translations =
+    I18Next.tf translations "displaySubtotals"
 
 
 duration : List I18Next.Translations -> String
@@ -131,6 +141,16 @@ timeUnit translations =
 timelineDirection : List I18Next.Translations -> String
 timelineDirection translations =
     I18Next.tf translations "timelineDirection"
+
+
+totalColumns : List I18Next.Translations -> String
+totalColumns translations =
+    I18Next.tf translations "totalColumns"
+
+
+totals : List I18Next.Translations -> String
+totals translations =
+    I18Next.tf translations "totals"
 
 
 vertical : List I18Next.Translations -> String

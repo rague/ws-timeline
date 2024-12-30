@@ -23,6 +23,7 @@ import Json.Encode as Encode
 import List.Extra as ListX
 import Markdown
 import Moment
+import Money
 import Phosphor exposing (IconWeight(..))
 import Platform.Cmd as Cmd
 import Select
@@ -66,7 +67,8 @@ type Msg
     | UpdateDirection Direction
     | UpdateWrap Bool
     | UpdateDurationUnit DurationUnit
-    | UpdateUsage Bool
+    | UpdateShowSubtotals Bool
+    | UpdateCountMoments Bool
 
 
 type View
@@ -83,14 +85,22 @@ type alias Model =
         , height : Int
         }
     , bounce : Bounce
-    , fields : Dict String ( Field, FieldState )
-    , groupsField : Dict String ( Field, FieldState )
+    , fields : Dict String Field
+    , contentFields : List String
+    , editableStates : Dict String FieldState
+    , editableFields : List String
+    , groupsStates : Dict String FieldState
+    , groupsFields : List String
+    , groupId : String
+    , subgroupId : Maybe String
+    , totalFields : List String
     , focus : String
     , options : Options
     , records : Dict String Record
     , selectStates : Dict String Select.State
     , showInspector : Bool
     , language : String
+    , currency : Field.Currency
     , translations : List I18Next.Translations
     , help : String
     , showModal : Modal
@@ -209,13 +219,21 @@ init flags =
             }
       , bounce = Bounce.init
       , fields = Dict.empty
-      , groupsField = Dict.empty
-      , options = Options (Time.millisToPosix 0) 0 0 38 Horizontal False du False
+      , contentFields = []
+      , editableStates = Dict.empty
+      , editableFields = []
+      , groupsStates = Dict.empty
+      , groupsFields = []
+      , groupId = ""
+      , subgroupId = Nothing
+      , totalFields = []
+      , options = Options (Time.millisToPosix 0) 0 0 38 Horizontal False du False False
       , records = Dict.empty
       , selectStates = Dict.empty
       , focus = ""
       , showInspector = False
       , language = lang
+      , currency = currencyFromFlags flags
       , help = ""
       , showModal = None
       , translations = [ defaultLanguage ]
@@ -261,7 +279,7 @@ view model =
             Html.text ""
 
           else
-            inspectorView model model.fields
+            inspectorView model model.editableFields model.editableStates
         , case model.showModal of
             Help ->
                 Html.div
@@ -305,10 +323,10 @@ view model =
                                 |> Phosphor.toHtml [ HA.style "vertical-align" "sub" ]
                             ]
                         , Html.h1 [] [ Html.text (T.newMoment model.translations) ]
-                        , fieldsView NewMoment model model.groupsField
+                        , fieldsView NewMoment model model.groupsFields model.groupsStates
                         , Html.button
                             [ Html.Events.onClick CreateNew
-                            , HA.disabled (validateNewMoment model.timelineState.zone model.durationUnit model.groupsField == Nothing)
+                            , HA.disabled (validateNewMoment model == Nothing)
                             ]
                             [ Html.text (T.create model.translations) ]
                         ]
@@ -373,14 +391,24 @@ settingsView model =
                     []
                 , Html.text (T.wrapText model.translations)
                 ]
-            , Html.label [ HA.style "margin-top" "20px" ]
+            , Html.label [ HA.style "margin-top" "20px" ] [ Html.text (T.totals model.translations) ]
+            , Html.label [ HA.style "margin-top" "10px" ]
                 [ Html.input
                     [ HA.type_ "checkbox"
-                    , HA.checked model.options.displayUsage
-                    , Html.Events.onCheck UpdateUsage
+                    , HA.checked model.options.countMoments
+                    , Html.Events.onCheck UpdateCountMoments
                     ]
                     []
-                , Html.text "Display resource usage"
+                , Html.text (T.countMoments model.translations)
+                ]
+            , Html.label [ HA.style "margin-top" "5px" ]
+                [ Html.input
+                    [ HA.type_ "checkbox"
+                    , HA.checked model.options.displaySubtotals
+                    , Html.Events.onCheck UpdateShowSubtotals
+                    ]
+                    []
+                , Html.text (T.displaySubtotals model.translations)
                 ]
             ]
         ]
@@ -398,6 +426,21 @@ languageFromFlags flags =
 
         Err _ ->
             "en"
+
+
+currencyFromFlags : Value -> Field.Currency
+currencyFromFlags flags =
+    let
+        result =
+            Decode.decodeValue (Decode.field "currency" Decode.string) flags
+    in
+    case result of
+        Ok currency ->
+            Money.fromString currency
+                |> Maybe.withDefault Money.EUR
+
+        Err _ ->
+            Money.EUR
 
 
 startDateFromFlags : Value -> Time.Posix
@@ -451,11 +494,11 @@ msForDurationUnit du =
             60000
 
 
-inspectorView : Model -> Dict String ( Field, FieldState ) -> Html.Html Msg
-inspectorView model =
-    fieldsView Inspector model
-        >> List.singleton
-        >> Html.div
+inspectorView : Model -> List String -> Dict String FieldState -> Html.Html Msg
+inspectorView model fields states =
+    fieldsView Inspector model fields states
+        |> List.singleton
+        |> Html.div
             [ HA.style "position" "absolute"
             , HA.style "right" "0px"
             , HA.style "top" "0px"
@@ -469,12 +512,16 @@ inspectorView model =
             , HA.style "box-shadow" "rgba(0,0,0,0.1) 1px 0px 14px"
             , HA.style "border-left" "1px solid #DDD"
             , HA.style "padding" "10px"
+            , HA.style "box-sizing" "border-box"
             ]
 
 
-fieldsView : View -> Model -> Dict String ( Field, FieldState ) -> Html.Html Msg
-fieldsView v ({ translations } as model) fields =
+fieldsView : View -> Model -> List String -> Dict String FieldState -> Html.Html Msg
+fieldsView v ({ translations } as model) fields states =
     let
+        locale =
+            Field.localeForLanguage model.language
+
         selSize =
             Timeline.Models.selectionSize model.timelineState.selection
 
@@ -657,19 +704,25 @@ fieldsView v ({ translations } as model) fields =
         []
     )
         ++ [ fields
-                |> Dict.toList
-                |> List.sortBy (\( _, ( f, _ ) ) -> f.position)
-                |> List.map
-                    (\( key, ( field, value ) ) ->
-                        case value of
-                            Val str ->
-                                { field = field, name = key, label = field.label, str = Just str, multi = False, error = Nothing }
+                |> List.filterMap
+                    (\key ->
+                        case ( Dict.get key model.fields, Dict.get key states ) of
+                            ( Just field, mbvalue ) ->
+                                case mbvalue of
+                                    Just (Val str) ->
+                                        Just { field = field, name = key, label = field.label, str = Just str, multi = False, error = Nothing }
 
-                            Multi ->
-                                { field = field, name = key, label = field.label, str = Nothing, multi = True, error = Nothing }
+                                    Just Multi ->
+                                        Just { field = field, name = key, label = field.label, str = Nothing, multi = True, error = Nothing }
+
+                                    Just (Error _ str) ->
+                                        Just { field = field, name = key, label = field.label, str = Nothing, multi = False, error = Just <| "Erreur : " ++ str }
+
+                                    _ ->
+                                        Just { field = field, name = key, label = field.label, str = Nothing, multi = False, error = Just "Erreur" }
 
                             _ ->
-                                { field = field, name = key, label = field.label, str = Nothing, multi = False, error = Just "Erreur" }
+                                Nothing
                     )
                 |> List.map
                     (\field ->
@@ -783,10 +836,10 @@ fieldsView v ({ translations } as model) fields =
                                         , HA.style "text-align"
                                             (case field.field.ofType of
                                                 Field.Float _ ->
-                                                    "right"
+                                                    "left"
 
                                                 Field.Int _ ->
-                                                    "right"
+                                                    "left"
 
                                                 _ ->
                                                     "left"
@@ -849,7 +902,7 @@ fieldsView v ({ translations } as model) fields =
 
                               else
                                 case field.field.ofType of
-                                    Field.Int _ ->
+                                    Field.Int format ->
                                         T.sum translations
                                             ++ (List.foldl
                                                     (\rec acc ->
@@ -860,11 +913,14 @@ fieldsView v ({ translations } as model) fields =
                                                     )
                                                     0
                                                     records
-                                                    |> String.fromInt
+                                                    |> toFloat
+                                                    |> Field.floatToString locale model.currency format
                                                )
                                             |> Html.text
+                                            |> List.singleton
+                                            |> Html.span [ HA.class "calcul" ]
 
-                                    Field.Float _ ->
+                                    Field.Float format ->
                                         let
                                             float =
                                                 List.foldl
@@ -878,8 +934,10 @@ fieldsView v ({ translations } as model) fields =
                                                     records
                                         in
                                         T.sum translations
-                                            ++ String.fromFloat ((float * 100 |> round |> toFloat) / 100)
+                                            ++ Field.floatToString locale model.currency format float
                                             |> Html.text
+                                            |> List.singleton
+                                            |> Html.span [ HA.class "calcul" ]
 
                                     _ ->
                                         Html.text ""
@@ -930,7 +988,7 @@ update msg model =
                             sectionIdsToSelection groups ids
                     in
                     ( { model | timelineState = Timeline.Update.updateSelection selection model.timelineState }
-                    , Dict.keys model.fields
+                    , Dict.keys model.editableStates
                         |> List.head
                         |> Maybe.map (\id -> Task.attempt (\_ -> NoOp) (Browser.Dom.focus id))
                         |> Maybe.withDefault Cmd.none
@@ -955,7 +1013,7 @@ update msg model =
                                     )
                                 |> Timeline.changeDirection options.direction
                                 |> Timeline.setWrapText options.wrapText
-                                |> Timeline.canEditSections (not options.displayUsage)
+                                |> Timeline.canEditSections (not options.displaySubtotals)
                         , options = options
                         , durationUnit = options.durationUnit
                       }
@@ -971,10 +1029,10 @@ update msg model =
         ChangeText v field str ->
             ( case v of
                 Inspector ->
-                    { model | fields = Dict.update field (Maybe.map (\( f, _ ) -> ( f, Val str ))) model.fields }
+                    { model | editableStates = Dict.insert field (Val str) model.editableStates }
 
                 NewMoment ->
-                    { model | groupsField = Dict.update field (Maybe.map (\( f, _ ) -> ( f, Val str ))) model.groupsField }
+                    { model | groupsStates = Dict.insert field (Val str) model.groupsStates }
             , Cmd.none
             )
 
@@ -988,7 +1046,7 @@ update msg model =
 
                             else
                                 model.focus
-                        , fields = Dict.update field (Maybe.map (\( f, _ ) -> ( f, Val str ))) model.fields
+                        , editableStates = Dict.insert field (Val str) model.editableStates
                       }
                     , makeFieldUpdate model field str
                     )
@@ -1001,13 +1059,13 @@ update msg model =
 
                             else
                                 model.focus
-                        , groupsField = updateGroupsField model.timelineState.zone model.translations model.durationUnit field str model.groupsField
+                        , groupsStates = updateGroupsField model.timelineState.zone model.durationUnit field str model.groupsStates
                       }
                     , Cmd.none
                     )
 
         CreateNew ->
-            case validateNewMoment model.timelineState.zone model.durationUnit model.groupsField of
+            case validateNewMoment model of
                 Just cmd ->
                     ( { model | showModal = None }, cmd )
 
@@ -1021,15 +1079,14 @@ update msg model =
                         upd =
                             Dict.update field
                                 (Maybe.andThen
-                                    (\val ->
-                                        Dict.singleton field val
-                                            |> fieldsFromSelection model.timelineState.zone model.translations model.durationUnit model.timelineState.selection model.records
+                                    (\_ ->
+                                        fieldsFromSelection model.timelineState.zone model.durationUnit model.timelineState.selection model.records [ field ]
                                             |> Dict.get field
                                     )
                                 )
-                                model.fields
+                                model.editableStates
                     in
-                    ( { model | fields = upd, focus = "" }, Browser.Dom.blur field |> Task.attempt (always NoOp) )
+                    ( { model | editableStates = upd, focus = "" }, Browser.Dom.blur field |> Task.attempt (always NoOp) )
 
                 NewMoment ->
                     ( { model | focus = "" }, Browser.Dom.blur field |> Task.attempt (always NoOp) )
@@ -1042,10 +1099,10 @@ update msg model =
                 fields =
                     case v of
                         Inspector ->
-                            model.fields
+                            model.editableStates
 
                         NewMoment ->
-                            model.groupsField
+                            model.groupsStates
             in
             case Dict.get field model.selectStates of
                 Just selectState ->
@@ -1056,7 +1113,7 @@ update msg model =
                         ( newDict, updMsg ) =
                             case maybeAction of
                                 Just (Select.Select item) ->
-                                    ( Dict.update field (Maybe.map <| \( f, _ ) -> ( f, Val (Field.choiceIdToString item) )) fields
+                                    ( Dict.insert field (Val (Field.choiceIdToString item)) fields
                                       -- Dict.get field fields
                                       -- |> Maybe.andThen
                                       --     (\( f, _ ) ->
@@ -1084,7 +1141,7 @@ update msg model =
                                             )
 
                                         NewMoment ->
-                                            ( Dict.update field (Maybe.map <| \( f, _ ) -> ( f, Error NoValue "" )) fields
+                                            ( Dict.insert field (Error NoValue "") fields
                                             , Cmd.none
                                             )
 
@@ -1095,19 +1152,15 @@ update msg model =
                         Inspector ->
                             ( { model
                                 | selectStates = Dict.insert field updatedSelectState model.selectStates
-                                , fields = newDict
+                                , editableStates = newDict
                               }
                             , Cmd.batch [ updMsg, Cmd.map (SelectMsg v field) selectCmds ]
                             )
 
                         NewMoment ->
-                            let
-                                _ =
-                                    Dict.get groupFieldId newDict |> Maybe.map Tuple.second
-                            in
                             ( { model
                                 | selectStates = Dict.insert field updatedSelectState model.selectStates
-                                , groupsField = newDict
+                                , groupsStates = newDict
                               }
                             , Cmd.map (SelectMsg v field) selectCmds
                             )
@@ -1178,7 +1231,29 @@ update msg model =
             , Bounce.delay 500 OptionsBounceMsg
             )
 
-        UpdateUsage bool ->
+        UpdateCountMoments bool ->
+            let
+                options =
+                    model.options
+            in
+            ( { model
+                | options = { options | countMoments = bool }
+                , timelineState =
+                    model.timelineState
+                        |> Timeline.reinit
+                            (removeSubtotals model.timelineState.srcgroups
+                                |> (if model.options.displaySubtotals then
+                                        addSubtotals { model | options = { options | countMoments = bool } }
+
+                                    else
+                                        identity
+                                   )
+                            )
+              }
+            , Bounce.delay 500 OptionsBounceMsg
+            )
+
+        UpdateShowSubtotals bool ->
             let
                 options =
                     model.options
@@ -1186,7 +1261,16 @@ update msg model =
             ( { model
                 | timelineState =
                     Timeline.canEditSections (not bool) model.timelineState
-                , options = { options | displayUsage = bool }
+                        |> Timeline.reinit
+                            (removeSubtotals model.timelineState.srcgroups
+                                |> (if bool then
+                                        addSubtotals model
+
+                                    else
+                                        identity
+                                   )
+                            )
+                , options = { options | displaySubtotals = bool }
               }
             , Bounce.delay 500 OptionsBounceMsg
             )
@@ -1199,7 +1283,7 @@ update msg model =
             ( { model
                 | durationUnit = du
                 , options = { options | durationUnit = du }
-                , fields = fieldsFromSelection model.timelineState.zone model.translations du model.timelineState.selection model.records model.fields
+                , editableStates = fieldsFromSelection model.timelineState.zone du model.timelineState.selection model.records model.editableFields
               }
             , Bounce.delay 500 OptionsBounceMsg
             )
@@ -1212,8 +1296,8 @@ timelineUpdate tmsg model =
             Timeline.update tmsg model.timelineState model.box
 
         groupFieldEditable =
-            Dict.get groupFieldId model.groupsField
-                |> Maybe.map (\( field, _ ) -> not field.isFormula)
+            Dict.get model.groupId model.fields
+                |> Maybe.map (\field -> not field.isFormula)
                 |> Maybe.withDefault False
 
         ( modif, cmd ) =
@@ -1297,31 +1381,33 @@ timelineUpdate tmsg model =
                 Timeline.Action.ChangeZoom { start, zoom, sectionOffsetY, lineSize } ->
                     ( { model
                         | options =
-                            Options start
-                                zoom
-                                sectionOffsetY
-                                (if state.direction == Vertical then
+                            { start = start
+                            , zoom = zoom
+                            , sectionOffsetY = sectionOffsetY
+                            , lineSize =
+                                if state.direction == Vertical then
                                     lineSize / 2
 
-                                 else
+                                else
                                     lineSize
-                                )
-                                model.timelineState.direction
-                                model.timelineState.wrapText
-                                model.durationUnit
-                                model.options.displayUsage
+                            , direction = model.timelineState.direction
+                            , wrapText = model.timelineState.wrapText
+                            , durationUnit = model.durationUnit
+                            , displaySubtotals = model.options.displaySubtotals
+                            , countMoments = model.options.displaySubtotals
+                            }
                       }
                     , Bounce.delay 500 OptionsBounceMsg
                     )
 
                 Timeline.Action.SelectSections sel ->
                     ( { model
-                        | fields =
+                        | editableStates =
                             if sel == model.timelineState.selection then
-                                model.fields
+                                model.editableStates
 
                             else
-                                fieldsFromSelection model.timelineState.zone model.translations model.durationUnit sel model.records model.fields
+                                fieldsFromSelection model.timelineState.zone model.durationUnit sel model.records model.editableFields
                       }
                     , Timeline.Models.selectionToSet sel
                         |> Set.toList
@@ -1349,20 +1435,20 @@ timelineUpdate tmsg model =
                 Cmd.none
 
             else
-                case ( action, Dict.get model.focus model.fields ) of
-                    ( Timeline.Action.SelectSections _, Just ( _, Val str ) ) ->
+                case ( action, Dict.get model.focus model.editableStates ) of
+                    ( Timeline.Action.SelectSections _, Just (Val str) ) ->
                         makeFieldUpdate model model.focus str
 
                     _ ->
                         Cmd.none
 
-        ( modal, groupsField ) =
+        ( modal, groupsStates ) =
             case action of
                 Timeline.Action.CreateSection Nothing start end ->
-                    ( New, fieldsFromDates model.timelineState.zone model.translations model.durationUnit start end model.groupsField )
+                    ( New, fieldsFromDates model.timelineState.zone model.durationUnit start end model.groupsStates )
 
                 _ ->
-                    ( model.showModal, model.groupsField )
+                    ( model.showModal, model.groupsStates )
     in
     ( { modif
         | timelineState =
@@ -1372,7 +1458,7 @@ timelineUpdate tmsg model =
 
                 _ ->
                     Timeline.applyAction action state
-        , groupsField = groupsField
+        , groupsStates = groupsStates
         , showModal = modal
         , showInspector =
             if model.showInspector then
@@ -1404,7 +1490,12 @@ receiveData data model =
                     | timelineState = Timeline.reinit [] model.timelineState
                     , records = Dict.empty
                     , fields = Dict.empty
-                    , groupsField = Dict.empty
+                    , contentFields = []
+                    , editableStates = Dict.empty
+                    , groupsStates = Dict.empty
+                    , totalFields = []
+                    , groupsFields = []
+                    , editableFields = []
                     , selectStates = Dict.empty
                     , showInspector = False
                     , hasCreated = False
@@ -1412,15 +1503,48 @@ receiveData data model =
             , Cmd.none
             )
 
-        Ok { records, maybeSelection, editable, group, subgroup } ->
+        Ok { records, content, maybeSelection, fields, editable, totals, group, subgroup } ->
             let
+                locale =
+                    Field.localeForLanguage model.language
+
                 groups =
                     records
+                        |> List.map
+                            (\rec ->
+                                { rec
+                                    | contenu =
+                                        List.map2
+                                            (\fid str ->
+                                                case Dict.get fid fields_ of
+                                                    Just field ->
+                                                        case field.ofType of
+                                                            Field.Int format ->
+                                                                String.toFloat str
+                                                                    |> Maybe.map (Field.floatToString locale model.currency format)
+                                                                    |> Maybe.withDefault str
+
+                                                            Field.Float format ->
+                                                                String.toFloat str
+                                                                    |> Maybe.map (Field.floatToString locale model.currency format)
+                                                                    |> Maybe.withDefault str
+
+                                                            _ ->
+                                                                str
+
+                                                    Nothing ->
+                                                        str
+                                            )
+                                            content
+                                            rec.contenu
+                                }
+                            )
                         |> ListX.gatherEqualsBy wrapGroupeId
                         |> List.map
                             (\( head, tail ) ->
                                 { id = wrapGroupeId head
                                 , label = wrapGroupe head
+                                , isSubtotal = False
                                 , sections =
                                     head
                                         :: tail
@@ -1439,9 +1563,12 @@ receiveData data model =
                                 }
                             )
 
+                model_ =
+                    { model | records = recordsDict, totalFields = totals, fields = fields_ }
+
                 groupsUsage =
-                    if model.options.displayUsage then
-                        List.concatMap (\g -> [ { g | id = "_usage_" ++ g.id, sections = computeUsage g.sections }, g ]) groups
+                    if model.options.displaySubtotals then
+                        addSubtotals model_ groups
 
                     else
                         groups
@@ -1455,31 +1582,31 @@ receiveData data model =
                             Timeline.reinit groupsUsage model.timelineState
                                 |> Timeline.Update.updateSelection (sectionIdsToSelection groupsUsage sel)
 
-                fields =
-                    List.indexedMap (\pos field -> ( field.id, ( { field | position = pos }, Error NoSelection "" ) )) editable
-                        |> Dict.fromList
-                        |> fieldsFromSelection model.timelineState.zone model.translations model.durationUnit newtl.selection recs
+                editableStates =
+                    fieldsFromSelection model.timelineState.zone model.durationUnit newtl.selection recordsDict editable
 
                 cmd =
                     if maybeSelection /= Nothing && model.hasCreated then
-                        Dict.toList fields
-                            |> List.sortBy (\( _, ( f, _ ) ) -> f.position)
-                            |> List.map Tuple.first
-                            |> ListX.getAt 3
+                        List.head editable
                             |> Maybe.map (\id -> textSelectAndFocus id)
                             |> Maybe.withDefault Cmd.none
 
                     else
                         Cmd.none
 
-                recs =
+                recordsDict =
                     List.map (\r -> ( String.fromInt r.id, r )) records |> Dict.fromList
 
-                groupsFiltered =
-                    List.filterMap identity
-                        [ Maybe.map (\g -> { g | id = groupFieldId }) group
-                        , Maybe.map (\s -> { s | id = subgroupFieldId }) subgroup
-                        ]
+                groupsFields =
+                    Maybe.map (\sg -> [ group, sg ]) subgroup
+                        |> Maybe.withDefault [ group ]
+
+                fields_ =
+                    List.map (\f -> ( f.id, f )) fields
+                        |> Dict.fromList
+                        |> Dict.insert debutFieldId (debutField model.translations)
+                        |> Dict.insert finFieldId (finField model.translations)
+                        |> Dict.insert dureeFieldId (dureeField model.translations)
             in
             ( { model
                 | timelineState =
@@ -1489,27 +1616,34 @@ receiveData data model =
 
                     else
                         newtl
-                , records = recs
-                , fields =
-                    fields
-                , groupsField =
-                    groupsFiltered
-                        |> List.indexedMap (\pos field -> ( field.id, ( { field | position = pos }, Error NoSelection "" ) ))
-                        |> Dict.fromList
+                , records = recordsDict
+                , fields = fields_
+                , contentFields = content
+                , editableFields = debutFieldId :: finFieldId :: dureeFieldId :: editable
+                , editableStates = editableStates
+                , groupsFields = debutFieldId :: finFieldId :: dureeFieldId :: groupsFields
+                , groupsStates = Dict.filter (\k _ -> List.member k groupsFields) model.groupsStates
+                , totalFields = totals
+                , groupId = group
+                , subgroupId = subgroup
                 , selectStates =
                     List.filterMap
-                        (\field ->
-                            case field.ofType of
-                                Field.Choice _ ->
-                                    Just ( field.id, Select.initState (Select.selectIdentifier field.id) )
+                        (\id ->
+                            Maybe.andThen
+                                (\field ->
+                                    case field.ofType of
+                                        Field.Choice _ ->
+                                            Just ( field.id, Select.initState (Select.selectIdentifier field.id) )
 
-                                Field.Ref _ ->
-                                    Just ( field.id, Select.initState (Select.selectIdentifier field.id) )
+                                        Field.Ref _ ->
+                                            Just ( field.id, Select.initState (Select.selectIdentifier field.id) )
 
-                                _ ->
-                                    Nothing
+                                        _ ->
+                                            Nothing
+                                )
+                                (Dict.get id fields_)
                         )
-                        (groupsFiltered ++ editable)
+                        (groupsFields ++ editable)
                         |> Dict.fromList
                 , showInspector = maybeSelection /= Nothing
                 , hasCreated = False
@@ -1518,21 +1652,98 @@ receiveData data model =
             )
 
 
-computeUsage : List Timeline.Models.Section -> List Timeline.Models.Section
-computeUsage sections =
+addSubtotals : Model -> List Timeline.Models.Group -> List Timeline.Models.Group
+addSubtotals model groups =
+    let
+        locale =
+            Field.localeForLanguage model.language
+
+        toValue =
+            \idx id ->
+                Dict.get id model.records
+                    |> Maybe.andThen (\rec -> ListX.getAt idx rec.totals)
+                    |> Maybe.withDefault 1
+    in
+    List.concatMap
+        (\g ->
+            (if model.options.countMoments then
+                [ { g
+                    | id = "_subtotal_count_" ++ g.id
+                    , isSubtotal = True
+                    , label =
+                        case g.label of
+                            x :: _ ->
+                                [ x, "#" ]
+
+                            _ ->
+                                [ "#" ]
+                    , sections = computeTotal (always 1) String.fromFloat g.sections
+                  }
+                ]
+
+             else
+                []
+            )
+                ++ List.indexedMap
+                    (\idx field ->
+                        let
+                            toString =
+                                Dict.get field model.fields
+                                    |> Maybe.map
+                                        (\f ->
+                                            case f.ofType of
+                                                Field.Int format ->
+                                                    Field.floatToString locale model.currency format
+
+                                                Field.Float format ->
+                                                    Field.floatToString locale model.currency format
+
+                                                _ ->
+                                                    -- Bool
+                                                    String.fromFloat
+                                        )
+                                    |> Maybe.withDefault String.fromFloat
+                        in
+                        { g
+                            | id = "_subtotal_" ++ field ++ "_" ++ g.id
+                            , isSubtotal = True
+                            , label =
+                                case g.label of
+                                    x :: _ ->
+                                        [ x, field ]
+
+                                    _ ->
+                                        [ field ]
+                            , sections = computeTotal (toValue idx) toString g.sections
+                        }
+                    )
+                    model.totalFields
+                ++ [ g ]
+        )
+        groups
+
+
+removeSubtotals : List Timeline.Models.Group -> List Timeline.Models.Group
+removeSubtotals groups =
+    List.filter (\g -> String.startsWith "_subtotal_" g.id |> not) groups
+
+
+computeTotal : (String -> Float) -> (Float -> String) -> List Timeline.Models.Section -> List Timeline.Models.Section
+computeTotal toValue toString sections =
     let
         evol =
-            List.foldl (\s acc -> ( 1, Time.posixToMillis s.start ) :: ( -1, Time.posixToMillis s.end ) :: acc) [] sections
-                |> List.sortBy Tuple.second
-                |> ListX.groupWhile (\( _, a ) ( _, b ) -> a == b)
-                |> List.map (\( x, xs ) -> List.foldl (\( c1, date ) ( c2, _ ) -> ( c1 + c2, date )) x xs)
+            List.foldl (\s acc -> ( 1, toValue s.id, Time.posixToMillis s.start ) :: ( -1, -(toValue s.id), Time.posixToMillis s.end ) :: acc) [] sections
+                |> List.sortBy (\( _, _, date ) -> date)
+                |> ListX.groupWhile (\( _, _, a ) ( _, _, b ) -> a == b)
+                |> List.map (\( x, xs ) -> List.foldl (\( c1, v1, date ) ( c2, v2, _ ) -> ( c1 + c2, v1 + v2, date )) x xs)
+                |> List.filter (\( c, _, _ ) -> c /= 0)
     in
     case evol of
-        x :: xs ->
+        ( xcount, xval, xdate ) :: xs ->
             let
                 ( _, list, _ ) =
                     List.foldl
-                        (\( countN, next ) ( last, ls, ( qtt, id ) ) ->
+                        (\( countN, value, next ) ( last, ls, ( qtt, total, id ) ) ->
                             ( next
                             , if qtt > 0 then
                                 { start = Time.millisToPosix last
@@ -1540,17 +1751,17 @@ computeUsage sections =
                                 , id = "_usage" ++ String.fromInt id
                                 , color = "#EEF"
                                 , isLocked = False
-                                , labels = [ String.fromInt qtt ]
+                                , labels = [ toString total ]
                                 , hasComment = False
                                 }
                                     :: ls
 
                               else
                                 ls
-                            , ( qtt + countN, id + 1 )
+                            , ( qtt + countN, total + value, id + 1 )
                             )
                         )
-                        ( Tuple.second x, [], ( Tuple.first x, 0 ) )
+                        ( xdate, [], ( xcount, xval, 0 ) )
                         xs
             in
             List.reverse list
@@ -1646,8 +1857,8 @@ makeFieldUpdate_ sel field value =
         |> updateField
 
 
-fieldsFromDates : Time.Zone -> List I18Next.Translations -> DurationUnit -> Time.Posix -> Time.Posix -> Dict String ( Field, FieldState ) -> Dict String ( Field, FieldState )
-fieldsFromDates zone trans durationUnit debut fin fields =
+fieldsFromDates : Time.Zone -> DurationUnit -> Time.Posix -> Time.Posix -> Dict String FieldState -> Dict String FieldState
+fieldsFromDates zone durationUnit debut fin states =
     let
         debutVal =
             debut |> Iso8601.toDateTimeString zone |> Val
@@ -1658,10 +1869,10 @@ fieldsFromDates zone trans durationUnit debut fin fields =
         dureeVal =
             Val (String.fromFloat (toFloat (Moment.durationBetween debut fin |> Moment.fromDuration) / msForDurationUnit durationUnit))
     in
-    fields
-        |> Dict.insert debutFieldId ( debutField trans, debutVal )
-        |> Dict.insert finFieldId ( finField trans, finVal )
-        |> Dict.insert dureeFieldId ( dureeField trans, dureeVal )
+    states
+        |> Dict.insert debutFieldId debutVal
+        |> Dict.insert finFieldId finVal
+        |> Dict.insert dureeFieldId dureeVal
 
 
 fieldStateToMaybe fs =
@@ -1673,17 +1884,17 @@ fieldStateToMaybe fs =
             Nothing
 
 
-updateGroupsField : Time.Zone -> List I18Next.Translations -> DurationUnit -> String -> String -> Dict String ( Field, FieldState ) -> Dict String ( Field, FieldState )
-updateGroupsField zone trans durationUnit field str fields =
+updateGroupsField : Time.Zone -> DurationUnit -> String -> String -> Dict String FieldState -> Dict String FieldState
+updateGroupsField zone durationUnit field str fields =
     let
         resdebut =
             Dict.get debutFieldId fields
-                |> Maybe.andThen (Tuple.second >> fieldStateToMaybe)
+                |> Maybe.andThen fieldStateToMaybe
                 |> Maybe.andThen (\s -> Decode.decodeString DecodeX.datetime ("\"" ++ s ++ "\"") |> Result.toMaybe)
 
         resfin =
             Dict.get finFieldId fields
-                |> Maybe.andThen (Tuple.second >> fieldStateToMaybe)
+                |> Maybe.andThen fieldStateToMaybe
                 |> Maybe.andThen (\s -> Decode.decodeString DecodeX.datetime ("\"" ++ s ++ "\"") |> Result.toMaybe)
     in
     if field == debutFieldId then
@@ -1693,7 +1904,7 @@ updateGroupsField zone trans durationUnit field str fields =
                     dureeVal =
                         Val (String.fromFloat (toFloat (Moment.durationBetween debut fin |> Moment.fromDuration) / msForDurationUnit durationUnit))
                 in
-                Dict.insert dureeFieldId ( dureeField trans, dureeVal ) fields
+                Dict.insert dureeFieldId dureeVal fields
 
             _ ->
                 fields
@@ -1705,7 +1916,7 @@ updateGroupsField zone trans durationUnit field str fields =
                     dureeVal =
                         Val (String.fromFloat (toFloat (Moment.durationBetween debut fin |> Moment.fromDuration) / msForDurationUnit durationUnit))
                 in
-                Dict.insert dureeFieldId ( dureeField trans, dureeVal ) fields
+                Dict.insert dureeFieldId dureeVal fields
 
             _ ->
                 fields
@@ -1717,7 +1928,7 @@ updateGroupsField zone trans durationUnit field str fields =
                     finVal =
                         Time.posixToMillis debut + (duree * msForDurationUnit durationUnit |> round) |> Time.millisToPosix |> Iso8601.toDateTimeString zone |> Val
                 in
-                Dict.insert finFieldId ( finField trans, finVal ) fields
+                Dict.insert finFieldId finVal fields
 
             _ ->
                 fields
@@ -1726,28 +1937,28 @@ updateGroupsField zone trans durationUnit field str fields =
         fields
 
 
-validateNewMoment : Time.Zone -> DurationUnit -> Dict String ( Field, FieldState ) -> Maybe (Cmd Msg)
-validateNewMoment zone durationUnit fields =
+validateNewMoment : Model -> Maybe (Cmd Msg)
+validateNewMoment model =
     let
         mbdebut =
-            Dict.get debutFieldId fields
-                |> Maybe.andThen (Tuple.second >> fieldStateToMaybe)
+            Dict.get debutFieldId model.groupsStates
+                |> Maybe.andThen fieldStateToMaybe
                 |> Maybe.andThen (\s -> Decode.decodeString DecodeX.datetime ("\"" ++ s ++ "\"") |> Result.toMaybe)
 
         mbduree =
-            Dict.get dureeFieldId fields
-                |> Maybe.andThen (Tuple.second >> fieldStateToMaybe)
+            Dict.get dureeFieldId model.groupsStates
+                |> Maybe.andThen fieldStateToMaybe
                 |> Maybe.andThen String.toFloat
 
         mbgroup =
-            Dict.get groupFieldId fields
-                |> Maybe.andThen (Tuple.second >> fieldStateToMaybe)
+            Dict.get model.groupId model.groupsStates
+                |> Maybe.andThen fieldStateToMaybe
                 |> Maybe.andThen Field.stringToChoiceId
                 |> Maybe.map Field.choiceIdToRawString
 
         mbsubgroup =
-            Dict.get subgroupFieldId fields
-                |> Maybe.andThen (Tuple.second >> fieldStateToMaybe)
+            Maybe.andThen (\subgroupId -> Dict.get subgroupId model.groupsStates) model.subgroupId
+                |> Maybe.andThen fieldStateToMaybe
                 |> Maybe.andThen Field.stringToChoiceId
                 |> Maybe.map Field.choiceIdToRawString
     in
@@ -1757,21 +1968,18 @@ validateNewMoment zone durationUnit fields =
                 args =
                     { groupeId = group
                     , sousGroupeId = mbsubgroup |> Maybe.withDefault ""
-
-                    -- , date = Iso8601.toDateTimeString model.timelineState.zone from
-                    , date = Iso8601.toDateTimeString zone debut
-                    , duree = duree * secondsForDurationUnit durationUnit |> round
+                    , date = Iso8601.toDateTimeString model.timelineState.zone debut
+                    , duree = duree * secondsForDurationUnit model.durationUnit |> round
                     }
             in
             Just (createRecord args)
 
-        -- Just Cmd.none
         _ ->
             Nothing
 
 
-fieldsFromSelection : Time.Zone -> List I18Next.Translations -> DurationUnit -> Timeline.Models.Selection -> Dict String Record -> Dict String ( Field, FieldState ) -> Dict String ( Field, FieldState )
-fieldsFromSelection zone trans durationUnit selids allRecords fields =
+fieldsFromSelection : Time.Zone -> DurationUnit -> Timeline.Models.Selection -> Dict String Record -> List String -> Dict String FieldState
+fieldsFromSelection zone durationUnit selids allRecords fields =
     let
         selSet =
             Timeline.Models.selectionToSet selids
@@ -1827,36 +2035,39 @@ fieldsFromSelection zone trans durationUnit selids allRecords fields =
                 _ ->
                     Multi
     in
-    Dict.map
-        (\key ( field, _ ) ->
+    List.map
+        (\key ->
             let
                 values =
                     List.map (Dict.get key) sel
                         |> ListX.unique
             in
-            case values of
+            ( key
+            , case values of
                 [] ->
-                    ( field, Error NoValue "" )
+                    Error NoValue ""
 
                 [ Nothing ] ->
-                    ( field, Error NoValue "" )
+                    Error NoValue ""
 
                 [ Just one ] ->
-                    ( field, Val one )
+                    Val one
 
                 _ ->
-                    ( field, Multi )
+                    Multi
+            )
         )
         fields
-        |> Dict.insert debutFieldId ( debutField trans, debutVal )
+        |> Dict.fromList
+        |> Dict.insert debutFieldId debutVal
         |> (case mbFinVal of
                 Just finVal ->
-                    Dict.insert finFieldId ( finField trans, finVal )
+                    Dict.insert finFieldId finVal
 
                 Nothing ->
                     Dict.remove finFieldId
            )
-        |> Dict.insert dureeFieldId ( dureeField trans, dureeVal )
+        |> Dict.insert dureeFieldId dureeVal
 
 
 wrapGroupeId : { g | groupeId : String, sousGroupeId : Maybe String } -> String
@@ -2003,18 +2214,11 @@ type alias Record =
     , sousGroupeId : Maybe String
     , contenu : List String
     , fields : Dict String String
+    , totals : List Float
     , couleur : String
     , isLocked : Bool
     , comment : Maybe String
     }
-
-
-groupFieldId =
-    "_timeline_Group"
-
-
-subgroupFieldId =
-    "_timeline_Subgroup"
 
 
 debutFieldId =
@@ -2024,7 +2228,6 @@ debutFieldId =
 debutField trans =
     { id = debutFieldId
     , label = T.startDate trans
-    , position = -10
     , ofType = Field.DateTime
     , values = Field.ListInt []
     , isFormula = False
@@ -2038,7 +2241,6 @@ finFieldId =
 finField trans =
     { id = finFieldId
     , label = T.endDate trans
-    , position = -10
     , ofType = Field.DateTime
     , values = Field.ListInt []
     , isFormula = False
@@ -2052,7 +2254,6 @@ dureeFieldId =
 dureeField trans =
     { id = dureeFieldId
     , label = T.duration trans
-    , position = -5
     , ofType = Field.standardFloat
     , values = Field.ListFloat []
     , isFormula = False
@@ -2083,19 +2284,30 @@ type Error
 
 
 type alias ReceiveData =
-    { records : List Record, maybeSelection : Maybe (List Int), editable : List Field, group : Maybe Field, subgroup : Maybe Field }
+    { records : List Record
+    , maybeSelection : Maybe (List Int)
+    , fields : List Field
+    , content : List String
+    , editable : List String
+    , totals : List String
+    , group : String
+    , subgroup : Maybe String
+    }
 
 
 receiveDecoder : Decoder ReceiveData
 receiveDecoder =
-    Decode.map5 ReceiveData
+    Decode.map8 ReceiveData
         (Decode.field "rows" <| Decode.list recordDecoder)
         (Decode.maybe <| Decode.field "selection" (Decode.list Decode.int))
-        (Decode.field "editable"
+        (Decode.field "fields"
             (Decode.list (Field.decoder defaultChoice))
         )
-        (Decode.field "group" (Decode.maybe (Field.decoder defaultChoice)))
-        (Decode.field "subgroup" (Decode.maybe (Field.decoder defaultChoice)))
+        (Decode.field "content" <| Decode.list Decode.string)
+        (Decode.field "editable" <| Decode.list Decode.string)
+        (Decode.field "totals" <| Decode.list Decode.string)
+        (Decode.field "group" Decode.string)
+        (Decode.field "subgroup" (Decode.maybe Decode.string))
 
 
 recordDecoder : Decoder Record
@@ -2115,6 +2327,7 @@ recordDecoder =
         |> optional "sousGroupeId" (Decode.string |> Decode.map Just) Nothing
         |> optional "contenu" (Decode.list anyDecoder) []
         |> optional "fields" (Decode.dict anyDecoder) Dict.empty
+        |> optional "totals" (Decode.list numericOrBoolDecoder) []
         |> required "couleur" (Decode.oneOf [ Decode.maybe Decode.string, Decode.nullable Decode.string ] |> Decode.map (Maybe.withDefault ""))
         |> optional "isLocked" Decode.bool False
         |> optional "commentaire"
@@ -2139,7 +2352,8 @@ type alias Options =
     , direction : Direction
     , wrapText : Bool
     , durationUnit : DurationUnit
-    , displayUsage : Bool
+    , displaySubtotals : Bool
+    , countMoments : Bool
     }
 
 
@@ -2153,7 +2367,8 @@ optionsDecoder =
         |> optional "direction" directionDecoder Horizontal
         |> optional "wrapText" Decode.bool False
         |> optional "durationUnit" durationUnitDecoder Hours
-        |> optional "displayUsage" Decode.bool False
+        |> optional "displaySubtotals" Decode.bool False
+        |> optional "countMoments" Decode.bool False
 
 
 encodeOptions : Options -> Value
@@ -2166,7 +2381,8 @@ encodeOptions options =
         , ( "direction", encodeDirection options.direction )
         , ( "wrapText", Encode.bool options.wrapText )
         , ( "durationUnit", encodeDurationUnit options.durationUnit )
-        , ( "displayUsage", Encode.bool options.displayUsage )
+        , ( "displaySubtotals", Encode.bool options.displaySubtotals )
+        , ( "countMoments", Encode.bool options.countMoments )
         ]
 
 
@@ -2221,6 +2437,23 @@ anyDecoder =
         ]
 
 
+numericOrBoolDecoder : Decoder Float
+numericOrBoolDecoder =
+    Decode.oneOf
+        [ Decode.float
+        , Decode.bool
+            |> Decode.map
+                (\b ->
+                    if b then
+                        1
+
+                    else
+                        0
+                )
+        , Decode.null 0
+        ]
+
+
 styles =
     """
 
@@ -2243,7 +2476,7 @@ input[type="checkbox"] {
 .field label {
     text-transform: uppercase;
     font-size: 10px;
-    color: #262626;
+    color: var(--grist-theme-text, var(--grist-color-dark));
     display: block;
 
     .unit {
@@ -2251,18 +2484,18 @@ input[type="checkbox"] {
     }
 }
 
-.field > input {
+.field > input,textarea{
     display: block;
     margin-top: 5px;
     color: var(--grist-theme-input-fg, black);
     outline: none;
-    height: 28px;
     font-size: 13px;
     border: 1px solid var(--grist-theme-input-border, var(--grist-color-dark-grey));
     border-radius: 3px;
-    padding: 0 6px;
+    padding: 6px;
 
 }
+
 
 .modal-background {
     position: absolute;
@@ -2374,6 +2607,11 @@ input[type="checkbox"] {
     background: none;
     
 }
+
+.calcul {
+    color: grey;
+    font-size: 11px;
+}
 """
 
 
@@ -2382,8 +2620,9 @@ selectStyles =
     Styles.default
         |> Styles.setControlStyles
             (Styles.getControlConfig Styles.default
-                |> Styles.setControlMinHeight 10
+                |> Styles.setControlMinHeight 30
                 |> Styles.setControlBorderRadius 3
                 |> Styles.setControlBorderColor (Css.hex "#DDD")
                 |> Styles.setControlBorderColorFocus (Css.rgba 0 0 0 0)
+                |> Styles.setControlIndicatorPadding 3
             )

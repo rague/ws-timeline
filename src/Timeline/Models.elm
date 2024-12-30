@@ -115,6 +115,7 @@ type alias Group =
     { id : GroupId
     , sections : List Section
     , label : List String
+    , isSubtotal : Bool
     }
 
 
@@ -130,6 +131,7 @@ type alias GroupBox =
     , position : Int
     , size : Int
     , label : List String
+    , isSubtotal : Bool
     , sections : List SectionBox
     }
 
@@ -629,15 +631,15 @@ meshesForGroups firstDate groups groupsList sel oldMeshes =
                             )
                             group.sections
                             |> List.partition (.selected >> not)
-                            |> Tuple.mapBoth (toMeshes firstDate >> (\m -> Dict.insert gid { position = toFloat group.position, meshes = m } mres))
-                                (toMeshes firstDate >> (\m -> Dict.insert gid { position = toFloat group.position, meshes = m } sres))
+                            |> Tuple.mapBoth (toMeshes group.isSubtotal firstDate >> (\m -> Dict.insert gid { position = toFloat group.position, meshes = m } mres))
+                                (toMeshes group.isSubtotal firstDate >> (\m -> Dict.insert gid { position = toFloat group.position, meshes = m } sres))
         )
         oldMeshes
         groupsList
 
 
-toMeshes : Posix -> List { a | section : { b | start : Posix, end : Posix, color : String, isLocked : Bool, hasComment : Bool }, line : Int, selected : Bool } -> Mesh Vertex
-toMeshes first taches =
+toMeshes : Bool -> Posix -> List { a | section : { b | start : Posix, end : Posix, color : String, isLocked : Bool, hasComment : Bool }, line : Int, selected : Bool } -> Mesh Vertex
+toMeshes isSubtotal first taches =
     let
         firstms =
             Time.posixToMillis first |> toFloat
@@ -676,7 +678,10 @@ toMeshes first taches =
 
                 -- vec4 (color.red * color.alpha) (color.green * color.alpha) (color.blue * color.alpha) color.alpha
                 border =
-                    if section.isLocked then
+                    if isSubtotal then
+                        128
+
+                    else if section.isLocked then
                         3
 
                     else

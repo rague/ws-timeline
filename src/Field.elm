@@ -1,4 +1,4 @@
-module Field exposing (Align(..), ChoiceId(..), ChoiceRecord, Field, FieldType(..), NumSign(..), NumberFormat, NumberMode(..), Values(..), choiceIdToRawString, choiceIdToString, decoder, encodeChoiceId, floatToString, localeForLanguage, standardFloat, standardInt, stringToChoiceId)
+module Field exposing (Align(..), ChoiceId(..), ChoiceRecord, Currency, Field, FieldType(..), NumSign(..), NumberFormat, NumberMode(..), Values(..), choiceIdToRawString, choiceIdToString, currencyFromString, decoder, encodeChoiceId, floatToString, localeForLanguage, standardFloat, standardInt, stringToChoiceId)
 
 import Dict exposing (Dict)
 import FormatNumber as FNum
@@ -13,11 +13,14 @@ import Money
 type alias Field =
     { id : String
     , label : String
-    , position : Int
     , ofType : FieldType
     , values : Values
     , isFormula : Bool
     }
+
+
+type alias Currency =
+    Money.Currency
 
 
 
@@ -65,7 +68,7 @@ type alias NumberFormat =
 
 type NumberMode
     = Standard
-    | Currency Money.Currency
+    | Currency (Maybe Money.Currency)
     | Thousands
     | Percent
     | Scientific
@@ -156,7 +159,6 @@ decoder defaultChoice =
                     (\values ->
                         { id = f.id
                         , label = f.label
-                        , position = 0
                         , ofType = f.ofType
                         , values = values
                         , isFormula = f.isFormula && (not <| String.isEmpty f.formula)
@@ -333,7 +335,7 @@ fieldTypeDecoder defaultChoice =
 numberFormatDecoder : Decoder NumberFormat
 numberFormatDecoder =
     Decode.map6 NumberFormat
-        (Decode.oneOf [ Decode.field "numMode" numberModeDecoder, Decode.succeed Standard ])
+        (Decode.oneOf [ numberModeDecoder, Decode.succeed Standard ])
         (Decode.oneOf [ Decode.field "numSign" numSignDecoder, Decode.succeed Minus ])
         (Decode.oneOf [ Decode.field "wrap" Decode.bool, Decode.succeed False ])
         (Decode.oneOf [ Decode.field "alignment" alignDecoder, Decode.succeed Right ])
@@ -343,29 +345,25 @@ numberFormatDecoder =
 
 numberModeDecoder : Decoder NumberMode
 numberModeDecoder =
-    Decode.string
+    Decode.map2 Tuple.pair
+        (Decode.field "numMode" Decode.string)
+        (Decode.maybe <| Decode.field "currency" Decode.string)
         |> Decode.andThen
-            (\str ->
-                case str of
-                    "currency" ->
-                        Decode.field "currency" Decode.string
-                            |> Decode.andThen
-                                (\s ->
-                                    case Money.fromString s of
-                                        Just cur ->
-                                            Decode.succeed (Currency cur)
+            (\( str, maybe ) ->
+                case ( str, maybe ) of
+                    ( "currency", Just curstr ) ->
+                        Decode.succeed (Currency (Money.fromString curstr))
 
-                                        Nothing ->
-                                            Decode.fail "Unknown currency"
-                                )
+                    ( "currency", Nothing ) ->
+                        Decode.succeed (Currency Nothing)
 
-                    "decimal" ->
+                    ( "decimal", _ ) ->
                         Decode.succeed Thousands
 
-                    "percent" ->
+                    ( "percent", _ ) ->
                         Decode.succeed Percent
 
-                    "scientific" ->
+                    ( "scientific", _ ) ->
                         Decode.succeed Scientific
 
                     _ ->
@@ -446,8 +444,14 @@ localeForLanguage str =
             FNL.usLocale
 
 
-floatToString : FNL.Locale -> NumberFormat -> Float -> String
-floatToString locale format float =
+currencyFromString : String -> Money.Currency
+currencyFromString str =
+    Money.fromString str
+        |> Maybe.withDefault Money.EUR
+
+
+floatToString : FNL.Locale -> Money.Currency -> NumberFormat -> Float -> String
+floatToString locale defaultCurrency format float =
     let
         fper =
             if format.format == Percent then
@@ -499,7 +503,7 @@ floatToString locale format float =
         float_
         ++ (case format.format of
                 Currency cur ->
-                    " " ++ Money.toSymbol cur
+                    " " ++ Money.toSymbol (Maybe.withDefault defaultCurrency cur)
 
                 Percent ->
                     " %"

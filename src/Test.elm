@@ -155,6 +155,7 @@ groupsData =
         (\j ->
             { id = "g" ++ String.fromInt j
             , label = [ "group " ++ String.fromInt j ]
+            , isSubtotal = False
             , sections =
                 if j /= 2 then
                     List.map

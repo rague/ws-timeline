@@ -11,8 +11,7 @@ function getLanguage() {
   if (this._lang) {
     return this._lang;
   } else {
-    const queryString = window.location.search;
-    const urlParams = new URLSearchParams(queryString);
+    const urlParams = new URLSearchParams(window.location.search);
     // this._lang = (urlParams.get('language') ?? navigator.language ?? 'en');
     this._lang = navigator.language;
     console.log("WS: getLanguage() =>", this._lang);
@@ -20,6 +19,10 @@ function getLanguage() {
   }
 }
 
+function getCurrency() {
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get('currency') ?? 'EUR';
+}
 
 async function translatePage() {
 
@@ -57,6 +60,7 @@ window.addEventListener('load', async (event) => {
   app = Elm.Widget.init({
     flags: {
       language: getLanguage(),
+      currency: getCurrency(),
       startDate: (new Date()).valueOf() - 86400000,
       durationUnit: timeUnit
     }
@@ -530,6 +534,15 @@ window.addEventListener('load', async (event) => {
         allowMultiple: true,
         // strictType: true
       },
+      {
+        name: "totals",
+        title: t("totalColumns"),
+        optional: true,
+        type: "Numeric, Int, Bool",
+        //   description: "D",
+        allowMultiple: true,
+        strictType: true
+      },
 
     ]
   });
@@ -587,26 +600,38 @@ window.addEventListener('load', async (event) => {
 
 
       const colMeta = await colTypesFetcher.getColMeta();
-      const editableTypes_ = mappings.fields.map(m => colMeta.find(cm => cm.colId === m))
+      const allFields = mappings.fields.concat(mappings.contenu, mappings.groupe, mappings.sousGroupe ?? []);
+      const editableTypes_ = allFields.map(m => colMeta.find(cm => cm.colId === m))
         .filter(v => v !== undefined)
       const editableTypes = await Promise.all(
         editableTypes_.map(populate));
-      console.log("WS: EDITABLE", editableTypes);
+      console.log("WS: FIELDS", editableTypes);
 
 
-      let groupeType = colMeta.find(cm => cm.colId === mappings.groupe);
-      let sousGroupeType = colMeta.find(cm => cm.colId === mappings.sousGroupe);
+      // let groupeType = colMeta.find(cm => cm.colId === mappings.groupe);
+      // let sousGroupeType = colMeta.find(cm => cm.colId === mappings.sousGroupe);
 
-      if (groupeType)
-        groupeType = await populate(groupeType);
-      if (sousGroupeType)
-        sousGroupeType = await populate(sousGroupeType);
+      // if (groupeType)
+      //   groupeType = await populate(groupeType);
+      // if (sousGroupeType)
+      //   sousGroupeType = await populate(sousGroupeType);
 
 
-      setRecordsArgs = { rows: data, editable: editableTypes, group: groupeType, subgroup: sousGroupeType };
+      setRecordsArgs = {
+        rows: data,
+        fields: editableTypes,
+        content: mappings.contenu,
+        editable: mappings.fields,
+        group: mappings.groupe,
+        subgroup: mappings.sousGroupe,
+        totals: mappings.totals
+      };
       console.log("WS: RECORDARGS", setRecordsArgs);
-      // console.log("WS: newSelection", newSelection);
-      app.ports.setRecords.send(newSelection ? { rows: data, selection: newSelection, editable: editableTypes, group: groupeType, subgroup: sousGroupeType } : { rows: data, editable: editableTypes, group: groupeType, subgroup: sousGroupeType });
+      let argsWithSel = { ...setRecordsArgs };
+      if (newSelection) {
+        argsWithSel.selection = newSelection;
+      }
+      app.ports.setRecords.send(argsWithSel);
       if (newSelection) grist.setSelectedRows(newSelection);
     }
 
