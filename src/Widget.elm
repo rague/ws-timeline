@@ -666,7 +666,7 @@ fieldsView v ({ translations } as model) fields states =
           )
             |> Html.text
             |> List.singleton
-            |> Html.div []
+            |> Html.div [ HA.class "calcul" ]
         , (case model.durationUnit of
             Hours ->
                 T.timeRange translations
@@ -690,14 +690,14 @@ fieldsView v ({ translations } as model) fields states =
           )
             |> Html.text
             |> List.singleton
-            |> Html.div []
+            |> Html.div [ HA.class "calcul" ]
         , T.workingDays translations
             ++ String.fromInt workingDays
             ++ " "
             ++ T.daysShort translations
             |> Html.text
             |> List.singleton
-            |> Html.div []
+            |> Html.div [ HA.class "calcul" ]
         ]
 
      else
@@ -1749,7 +1749,7 @@ computeTotal toValue toString sections =
                                 { start = Time.millisToPosix last
                                 , end = Time.millisToPosix next
                                 , id = "_usage" ++ String.fromInt id
-                                , color = "#EEF"
+                                , color = "#FFF"
                                 , isLocked = False
                                 , labels = [ toString total ]
                                 , hasComment = False

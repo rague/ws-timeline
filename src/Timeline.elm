@@ -1692,6 +1692,19 @@ sectionBox2html ( locale, zone ) direction ( positionh, positionv ) ( sizeh, siz
 
         maxLabelsSel =
             List.length labels - 1
+
+        color_ =
+            findColor color
+
+        cssColor =
+            if isSelected then
+                Color.mapLightness (always 0.8) color_ |> Color.mapAlpha (always 1.0) |> Color.toCssString
+
+            else if Color.lightness color_ > 0.5 then
+                "black"
+
+            else
+                "#BBB"
     in
     Html.div
         [ HA.class "section"
@@ -1701,7 +1714,9 @@ sectionBox2html ( locale, zone ) direction ( positionh, positionv ) ( sizeh, siz
 
             else
                 ""
-        , HA.class <| Timeline.Models.findColorName color
+        , HA.style "color" cssColor
+
+        -- , HA.class <| Timeline.Models.findColorName color
         , HA.style "left" ((String.fromFloat <| posx) ++ "px")
         , HA.style "top" ((String.fromFloat <| posy) ++ "px")
         , HA.style "width" ((String.fromFloat <| max 5 (sizeh + dx)) ++ "px")
@@ -1982,7 +1997,7 @@ fragmentShaderHoriz =
             
             // Calculate distance to edge.   
             vec2 center = gl_FragCoord.xy - ((location+vec2(1.0)) * iResolution.xy/2.0);
-            vec2 sizepix = size * iResolution.xy / 2.0 - vec2(0.0, 3.0);
+            vec2 sizepix = (size * iResolution.xy / 2.0 - vec2(0.0, 3.0));
             float distance = roundedBoxSDF( center, sizepix, radius);
             
             // Smooth the result (free antialiasing).
