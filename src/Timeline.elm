@@ -1,4 +1,4 @@
-module Timeline exposing (Msg(..), applyAction, calcLayersSize, canEditGroups, canEditSections, canSortGroups, changeDirection, changeLineSize, changeStartAndZoom, changeYOffset, init, reinit, sectionsView, setLanguage, setWrapText, styles, subscriptions, update, view, zoomAllTime)
+module Timeline exposing (Msg(..), applyAction, calcLayersSize, canEditGroups, canEditSections, canSortGroups, changeDirection, changeLineSize, changeStartAndZoom, changeYOffset, displayAxis, init, reinit, setLanguage, setWrapText, styles, subscriptions, update, view, zoomAllTime)
 
 import Browser.Dom
 import Browser.Events
@@ -32,7 +32,6 @@ import Timeline.Update exposing (..)
 import Timeline.Utils exposing (findSection)
 import Tuple exposing (first, second)
 import WebGL exposing (Mesh, Shader)
-import WebGL.Settings
 
 
 subscriptions : TimelineBox -> Sub Msg
@@ -157,6 +156,7 @@ default posix =
     , canSortGroups = True
     , canEditGroups = True
     , canEditSections = True
+    , displayAxis = True
     , wrapText = False
     , currentPosix = Time.millisToPosix 0
     }
@@ -480,6 +480,11 @@ changeDirection dir tl =
     }
 
 
+displayAxis : Bool -> TimelineBox -> TimelineBox
+displayAxis b tl =
+    { tl | displayAxis = b }
+
+
 setWrapText : Bool -> TimelineBox -> TimelineBox
 setWrapText bool tl =
     { tl
@@ -502,13 +507,17 @@ axisWidth =
     180
 
 
+axisAttrs =
+    [ wheelEvent SectionsWheel, moveY0Event SectionsMove ]
+
+
 groupsWidth : number
 groupsWidth =
     250
 
 
-view : TimelineBox -> { width : Int, height : Int } -> Html Msg
-view box rect =
+view : List (Html.Attribute Msg) -> TimelineBox -> { width : Int, height : Int } -> Html Msg
+view attrs box rect =
     let
         lateral =
             if box.direction == Horizontal then
@@ -523,6 +532,17 @@ view box rect =
 
             else
                 50
+
+        axisSize =
+            if box.displayAxis then
+                if box.direction == Horizontal then
+                    axisHeight
+
+                else
+                    axisWidth
+
+            else
+                0
 
         width =
             rect.width - lateral
@@ -581,20 +601,21 @@ view box rect =
                 |> round
     in
     Html.div
-        [ HA.style "width" (String.fromInt rect.width ++ "px")
-        , HA.style "height" (String.fromInt rect.height ++ "px")
-        , HA.style "font-family" "sans-serif"
-        , HA.class "timeline"
-        , HA.tabindex 0
-        , Html.Events.on "keyup" (Decode.map Keypress Html.Events.keyCode)
-        , mouseUpEvent SectionsUp
-        ]
+        ([ HA.style "width" (String.fromInt rect.width ++ "px")
+         , HA.style "height" (String.fromInt rect.height ++ "px")
+         , HA.class "timeline"
+         , HA.tabindex 0
+         , Html.Events.on "keyup" (Decode.map Keypress Html.Events.keyCode)
+         , mouseUpEvent SectionsUp
+         ]
+            ++ attrs
+        )
         [ Html.div
             (if box.direction == Horizontal then
                 [ HA.style "position" "absolute"
                 , HA.style "width" (String.fromInt lateral ++ "px")
-                , HA.style "height" (String.fromInt (rect.height - axisHeight) ++ "px")
-                , HA.style "top" (String.fromInt axisHeight ++ "px")
+                , HA.style "height" (String.fromInt (rect.height - axisSize) ++ "px")
+                , HA.style "top" (String.fromInt axisSize ++ "px")
                 , HA.style "overflow" "hidden"
                 , wheelEvent GroupsWheel
                 , moveY0Event SectionsMove
@@ -602,9 +623,9 @@ view box rect =
 
              else
                 [ HA.style "position" "absolute"
-                , HA.style "width" (String.fromInt (rect.width - axisWidth) ++ "px")
+                , HA.style "width" (String.fromInt (rect.width - axisSize) ++ "px")
                 , HA.style "height" (String.fromInt top ++ "px")
-                , HA.style "left" (String.fromInt axisWidth ++ "px")
+                , HA.style "left" (String.fromInt axisSize ++ "px")
                 , HA.style "overflow" "hidden"
                 , wheelEvent GroupsWheel
                 , moveY0Event SectionsMove
@@ -625,9 +646,9 @@ view box rect =
                 [ HA.style "position" "absolute"
                 , HA.style "overflow" "hidden"
                 , HA.style "left" (String.fromInt lateral ++ "px")
-                , HA.style "top" (String.fromInt (top + axisHeight) ++ "px")
+                , HA.style "top" (String.fromInt (top + axisSize) ++ "px")
                 , HA.style "width" <| String.fromInt width ++ "px"
-                , HA.style "height" <| String.fromInt (height - axisHeight) ++ "px"
+                , HA.style "height" <| String.fromInt (height - axisSize) ++ "px"
                 ]
                 [ Html.div
                     [ HA.style "position" "absolute"
@@ -649,9 +670,9 @@ view box rect =
             Html.div
                 [ HA.style "position" "absolute"
                 , HA.style "overflow" "hidden"
-                , HA.style "left" (String.fromInt (lateral + axisWidth) ++ "px")
+                , HA.style "left" (String.fromInt (lateral + axisSize) ++ "px")
                 , HA.style "top" (String.fromInt top ++ "px")
-                , HA.style "width" <| String.fromInt (width - axisWidth) ++ "px"
+                , HA.style "width" <| String.fromInt (width - axisSize) ++ "px"
                 , HA.style "height" <| String.fromInt height ++ "px"
                 ]
                 [ Html.div
@@ -711,32 +732,32 @@ view box rect =
             -- , HA.style "z-index" "1"
             ]
             [ if box.direction == Horizontal then
-                Html.Lazy.lazy7 Axis.hview [ wheelEvent SectionsWheel, moveY0Event SectionsMove ] box.locale box.zone width height from end
+                Html.Lazy.lazy8 Axis.hview axisAttrs box.locale box.zone box.displayAxis width height from end
 
               else
-                Html.Lazy.lazy7 Axis.vview [ wheelEvent SectionsWheel, moveY0Event SectionsMove ] box.locale box.zone width height from end
+                Html.Lazy.lazy8 Axis.vview axisAttrs box.locale box.zone box.displayAxis width height from end
             ]
         , if box.direction == Horizontal then
             Html.div
                 [ HA.style "position" "absolute"
                 , HA.style "overflow" "hidden"
                 , HA.style "left" (String.fromInt lateral ++ "px")
-                , HA.style "top" (String.fromInt (top + axisHeight) ++ "px")
+                , HA.style "top" (String.fromInt (top + axisSize) ++ "px")
                 , HA.style "width" <| String.fromInt width ++ "px"
-                , HA.style "height" <| String.fromInt (height - axisHeight) ++ "px"
+                , HA.style "height" <| String.fromInt (height - axisSize) ++ "px"
                 ]
-                [ sectionsView box box.sections width (height - axisHeight) from end ]
+                [ sectionsView box box.sections width (height - axisSize) from end ]
 
           else
             Html.div
                 [ HA.style "position" "absolute"
                 , HA.style "overflow" "hidden"
-                , HA.style "left" (String.fromInt (lateral + axisWidth) ++ "px")
+                , HA.style "left" (String.fromInt (lateral + axisSize) ++ "px")
                 , HA.style "top" (String.fromInt top ++ "px")
                 , HA.style "width" <| String.fromInt width ++ "px"
                 , HA.style "height" <| String.fromInt height ++ "px"
                 ]
-                [ sectionsView box box.sections (width - axisWidth) height from end ]
+                [ sectionsView box box.sections (width - axisSize) height from end ]
         , if Moment.between box.currentPosix (Time.millisToPosix (round from)) (Time.millisToPosix (round end)) then
             Html.div
                 [ HA.style "position" "absolute"
@@ -1116,6 +1137,7 @@ type alias SectionView a =
     , top : Float
     , width : Float
     , height : Float
+    , isSubtotal : Bool
     }
 
 
@@ -1195,6 +1217,12 @@ sectionsView ({ direction } as box) sections width height fromTime endTime =
             sections
                 |> List.map
                     (\{ section, groupId, line } ->
+                        let
+                            isSubtotal =
+                                Dict.get groupId box.groups
+                                    |> Maybe.map (\gbox -> gbox.isSubtotal)
+                                    |> Maybe.withDefault False
+                        in
                         if isSelected groupId section.id selection then
                             let
                                 start =
@@ -1213,12 +1241,14 @@ sectionsView ({ direction } as box) sections width height fromTime endTime =
                                 }
                             , line = line + moveGroup
                             , selected = True
+                            , isSubtotal = isSubtotal
                             }
 
                         else
                             { section = section
                             , line = line
                             , selected = False
+                            , isSubtotal = isSubtotal
                             }
                     )
                 |> List.foldr
@@ -1275,6 +1305,7 @@ sectionsView ({ direction } as box) sections width height fromTime endTime =
                                     , top = getter.v pos
                                     , width = getter.h size
                                     , height = getter.v size
+                                    , isSubtotal = sbox.isSubtotal
                                     }
 
                         else
@@ -1338,7 +1369,13 @@ sectionsView ({ direction } as box) sections width height fromTime endTime =
                             sections
                                 |> List.filterMap
                                     (\{ section, groupId, line } ->
-                                        if isSelected groupId section.id selection then
+                                        let
+                                            isSubtotal =
+                                                Dict.get groupId box.groups
+                                                    |> Maybe.map .isSubtotal
+                                                    |> Maybe.withDefault False
+                                        in
+                                        if isSelected groupId section.id selection && not isSubtotal then
                                             Just
                                                 { section =
                                                     { section
@@ -1579,7 +1616,7 @@ drawHtmlSections direction locale zone _ _ scrollX scrollY allSections mbselecti
             (List.map
                 (\({ section } as sbox) ->
                     ( sbox.section.id
-                    , Html.Lazy.lazy7 sectionBox2html
+                    , Html.Lazy.lazy8 sectionBox2html
                         ( locale, zone )
                         direction
                         ( sbox.left, sbox.top )
@@ -1587,6 +1624,7 @@ drawHtmlSections direction locale zone _ _ scrollX scrollY allSections mbselecti
                         sbox.selected
                         wrapText
                         section
+                        (not sbox.isSubtotal)
                     )
                 )
                 allSections
@@ -1627,6 +1665,7 @@ drawHtmlSections direction locale zone _ _ scrollX scrollY allSections mbselecti
                                 , isLocked = False
                                 , comment = Nothing
                                 }
+                                True
                         )
                     |> Html.div []
 
@@ -1649,8 +1688,9 @@ sectionBox2html :
             , color : String
             , labels : List String
         }
+    -> Bool
     -> Html msg
-sectionBox2html ( locale, zone ) direction ( positionh, positionv ) ( sizeh, sizev ) isSelected wrapText { color, labels, start, end } =
+sectionBox2html ( locale, zone ) direction ( positionh, positionv ) ( sizeh, sizev ) isSelected wrapText { color, labels, start, end } drawTime =
     let
         posx =
             positionh
@@ -1669,8 +1709,12 @@ sectionBox2html ( locale, zone ) direction ( positionh, positionv ) ( sizeh, siz
                 || (direction == Vertical && (sizev < 35))
 
         hideTimeBox =
-            (direction == Horizontal && (sizev < 25))
-                || (direction == Vertical && (sizeh < 25))
+            if drawTime then
+                (direction == Horizontal && (sizev < 25))
+                    || (direction == Vertical && (sizeh < 25))
+
+            else
+                True
 
         labelsSel =
             labels
@@ -1704,7 +1748,7 @@ sectionBox2html ( locale, zone ) direction ( positionh, positionv ) ( sizeh, siz
                 "black"
 
             else
-                "#BBB"
+                "#FFF"
     in
     Html.div
         [ HA.class "section"
@@ -1715,8 +1759,11 @@ sectionBox2html ( locale, zone ) direction ( positionh, positionv ) ( sizeh, siz
             else
                 ""
         , HA.style "color" cssColor
+        , if color == "new" then
+            HA.class color
 
-        -- , HA.class <| Timeline.Models.findColorName color
+          else
+            HA.class ""
         , HA.style "left" ((String.fromFloat <| posx) ++ "px")
         , HA.style "top" ((String.fromFloat <| posy) ++ "px")
         , HA.style "width" ((String.fromFloat <| max 5 (sizeh + dx)) ++ "px")
@@ -1730,9 +1777,9 @@ sectionBox2html ( locale, zone ) direction ( positionh, positionv ) ( sizeh, siz
                   else
                     Just <|
                         Html.div
-                            [ HA.style "fontSize" "10px"
+                            [ HA.style "font-size" "10px"
                             , HA.class "dates"
-                            , HA.style "padding-top" "2px   "
+                            , HA.style "padding-top" "2px"
                             ]
                             [ Html.div
                                 [ HA.style "padding-left" "2px"
@@ -1750,20 +1797,28 @@ sectionBox2html ( locale, zone ) direction ( positionh, positionv ) ( sizeh, siz
                                      else
                                         [ HA.class "v-end-date"
                                         , HA.style "top" ((String.fromInt <| round <| (sizev - 12)) ++ "px")
+                                        , HA.style "right" "2px"
                                         ]
                                     )
                                     [ Html.text <| Moment.format locale zone Moment.Hour Nothing end ]
                             ]
                 , Just <|
                     Html.div
-                        [ HA.style "fontSize"
+                        [ HA.style "font-size"
                             (if sizev < 15 then
-                                "11px"
+                                "10px"
 
                              else
-                                "13px"
+                                "12px"
                             )
                         , HA.style "padding-left" "2px"
+                        , HA.style "padding-top"
+                            (if hideTimeBox then
+                                "2px"
+
+                             else
+                                "0"
+                            )
                         , HA.style "height"
                             ((String.fromFloat <|
                                 max 5
@@ -1773,7 +1828,7 @@ sectionBox2html ( locale, zone ) direction ( positionh, positionv ) ( sizeh, siz
                                             0
 
                                            else
-                                            13
+                                            11
                                           )
                                     )
                              )
@@ -2109,6 +2164,17 @@ update msg bb rect =
     let
         box =
             { bb | zoomChange = max 0 (bb.zoomChange - 1) }
+
+        axisSize =
+            if box.displayAxis then
+                if box.direction == Horizontal then
+                    axisHeight
+
+                else
+                    axisWidth
+
+            else
+                0
     in
     case msg of
         NoOp ->
@@ -2117,10 +2183,10 @@ update msg bb rect =
         SectionsWheel event ->
             sectionsWheel box
                 (if box.direction == Horizontal then
-                    { rect | height = rect.height - axisHeight }
+                    { rect | height = rect.height - axisSize }
 
                  else
-                    { rect | width = rect.width - axisWidth }
+                    { rect | width = rect.width - axisSize }
                 )
                 event
 
@@ -2151,10 +2217,18 @@ update msg bb rect =
 
         GroupsWheel event ->
             groupsWheel box
-                { top = axisHeight
-                , width = rect.width
-                , height = rect.height - axisHeight
-                }
+                (if box.direction == Horizontal then
+                    { top = axisSize
+                    , width = rect.width
+                    , height = rect.height - axisSize
+                    }
+
+                 else
+                    { top = axisSize
+                    , width = rect.height
+                    , height = rect.width - axisSize
+                    }
+                )
                 event
 
         DndMsg dndmsg ->
@@ -2338,6 +2412,9 @@ styles =
     root ".timeline"
         [ prop "user-select" "none"
         , prop "-webkit-user-select" "none"
+        , prop "position" "relative"
+        , prop "font-family" "sans-serif"
+        , prop "overflow" "hidden"
         , child ".group div" [ prop "white-space" "wrap" ]
         , child ".group.move" [ prop "background-color" "#77f" ]
         , child ".group.even"
@@ -2386,7 +2463,7 @@ styles =
             [ prop "color" "black"
             , prop "position" "absolute"
             , prop "overflow" "hidden"
-            , prop "fontFamily" "Arial, Helvetica, sans-serif"
+            , prop "font-family" "Arial, Helvetica, sans-serif"
             , prop "box-sizing" "border-box"
             , child ".dates"
                 [ prop "color" "rgba(0,0,0,0.5)"

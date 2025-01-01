@@ -35,6 +35,7 @@ module Timeline.Models exposing
     , isSelected
     , jaune
     , magenta
+    , mapSelection
     , mauve
     , maxDuration
     , meshesForGroups
@@ -158,6 +159,12 @@ type Selection
 selection : TimelineBox -> Selection
 selection tm =
     tm.selection
+
+
+mapSelection : (GroupId -> Set SectionId -> Set SectionId) -> Selection -> Selection
+mapSelection func (Selection sel) =
+    Dict.map func sel
+        |> Selection
 
 
 selectedSections : TimelineBox -> List Section
@@ -304,6 +311,7 @@ type alias TimelineBox =
     , canSortGroups : Bool
     , canEditGroups : Bool
     , canEditSections : Bool
+    , displayAxis : Bool
     , wrapText : Bool
     , currentPosix : Posix
     }

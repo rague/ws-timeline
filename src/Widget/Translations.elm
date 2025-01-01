@@ -23,6 +23,11 @@ content translations =
     I18Next.tf translations "content"
 
 
+count : List I18Next.Translations -> String
+count translations =
+    I18Next.tf translations "count"
+
+
 countMoments : List I18Next.Translations -> String
 countMoments translations =
     I18Next.tf translations "countMoments"

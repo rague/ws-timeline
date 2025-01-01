@@ -279,8 +279,8 @@ axis dir locale zone from to size =
             grid.divs
 
 
-hview : List (Html.Attribute msg) -> Cldr.Locale.Locale -> Time.Zone -> Int -> Int -> Float -> Float -> Html msg
-hview attrs locale zone width height from to =
+hview : List (Html.Attribute msg) -> Cldr.Locale.Locale -> Time.Zone -> Bool -> Int -> Int -> Float -> Float -> Html msg
+hview attrs locale zone displayAxis width height from to =
     let
         instructions =
             axis Horizontal locale zone from to (toFloat width)
@@ -308,7 +308,13 @@ hview attrs locale zone width height from to =
                             line
                                 [ x1 <| String.fromFloat left
                                 , x2 <| String.fromFloat left
-                                , y1 <| String.fromFloat (-15 * top + 35)
+                                , y1 <|
+                                    String.fromFloat <|
+                                        if displayAxis then
+                                            -15 * top + 35
+
+                                        else
+                                            0
                                 , y2 <| String.fromInt height
 
                                 -- , stroke lineColor
@@ -318,12 +324,16 @@ hview attrs locale zone width height from to =
                                 []
 
                         DrawText left top size label ->
-                            text_
-                                [ x <| String.fromFloat (2 + left)
-                                , y <| String.fromFloat (-15 * top + 45)
-                                , SA.style ("font-size:" ++ String.fromFloat size ++ "px")
-                                ]
-                                [ text label ]
+                            if displayAxis then
+                                text_
+                                    [ x <| String.fromFloat (2 + left)
+                                    , y <| String.fromFloat (-15 * top + 45)
+                                    , SA.style ("font-size:" ++ String.fromFloat size ++ "px")
+                                    ]
+                                    [ text label ]
+
+                            else
+                                Svg.g [] []
                 )
                 instructions
         ]
@@ -337,8 +347,8 @@ vpos idx =
     Array.get (round idx) vposArray |> Maybe.withDefault 0
 
 
-vview : List (Html.Attribute msg) -> Cldr.Locale.Locale -> Time.Zone -> Int -> Int -> Float -> Float -> Html msg
-vview attrs locale zone width height from to =
+vview : List (Html.Attribute msg) -> Cldr.Locale.Locale -> Time.Zone -> Bool -> Int -> Int -> Float -> Float -> Html msg
+vview attrs locale zone displayAxis width height from to =
     let
         instructions =
             axis Vertical locale zone from to (toFloat height)
@@ -366,7 +376,13 @@ vview attrs locale zone width height from to =
                                 , y2 <| String.fromFloat top
 
                                 -- , x1 <| String.fromFloat (-60 * left + 120)
-                                , x1 <| String.fromFloat (vpos left + 120)
+                                , x1 <|
+                                    String.fromFloat <|
+                                        if displayAxis then
+                                            vpos left + 120
+
+                                        else
+                                            0
                                 , x2 <| String.fromInt width
                                 , stroke lineColor
                                 , strokeWidth <| String.fromFloat weight
@@ -374,15 +390,19 @@ vview attrs locale zone width height from to =
                                 []
 
                         DrawText top left size label ->
-                            text_
-                                [ y <| String.fromFloat (12 + top)
+                            if displayAxis then
+                                text_
+                                    [ y <| String.fromFloat (12 + top)
 
-                                -- , x <| String.fromFloat (-60 * left + 175)
-                                , x <| String.fromFloat (vpos left + 175)
-                                , SA.textAnchor "end"
-                                , SA.style ("font-size:" ++ String.fromFloat size ++ "px")
-                                ]
-                                [ text label ]
+                                    -- , x <| String.fromFloat (-60 * left + 175)
+                                    , x <| String.fromFloat (vpos left + 175)
+                                    , SA.textAnchor "end"
+                                    , SA.style ("font-size:" ++ String.fromFloat size ++ "px")
+                                    ]
+                                    [ text label ]
+
+                            else
+                                Svg.g [] []
                 )
                 instructions
         ]

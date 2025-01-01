@@ -42,8 +42,17 @@ import Widget.Language exposing (defaultLanguage)
 import Widget.Translations as T
 
 
+totalsHorizSize =
+    22
+
+
+totalsVertSize =
+    44
+
+
 type Msg
     = TimelineMsg Timeline.Msg
+    | TotalsMsg Timeline.Msg
     | Receive Value
     | ChangeSelection Value
     | ChangeOptions Value
@@ -78,6 +87,7 @@ type View
 
 type alias Model =
     { timelineState : Timeline.Models.TimelineBox
+    , totalState : Timeline.Models.TimelineBox
     , error : List ( Int, String )
     , errorId : Int
     , box :
@@ -164,6 +174,7 @@ main =
                     , setError AddError
                     , Browser.Events.onResize sizeToMsg
                     , Sub.map TimelineMsg (Timeline.subscriptions model.timelineState)
+                    , Sub.map TotalsMsg (Timeline.subscriptions model.totalState)
                     , case model.showModal of
                         None ->
                             Sub.none
@@ -211,6 +222,14 @@ init flags =
                 |> Timeline.canEditGroups False
                 |> Timeline.canSortGroups False
                 |> Timeline.setLanguage lang
+      , totalState =
+            Timeline.init []
+                (startDateFromFlags flags)
+                |> Timeline.canEditGroups False
+                |> Timeline.canSortGroups False
+                |> Timeline.setLanguage lang
+                |> Timeline.changeLineSize totalsHorizSize
+                |> Timeline.displayAxis False
       , error = []
       , errorId = 0
       , box =
@@ -251,12 +270,73 @@ init flags =
 
 view : Model -> { title : String, body : List (Html.Html Msg) }
 view model =
+    let
+        displayTotals =
+            not (List.isEmpty model.totalFields)
+                || model.options.countMoments
+
+        totalsSize =
+            model.totalState.lineSize
+                * toFloat
+                    (List.length model.totalFields
+                        + (if model.options.countMoments then
+                            1
+
+                           else
+                            0
+                          )
+                    )
+                |> round
+
+        cssDisplay =
+            if model.options.direction == Horizontal then
+                [ HA.style "box-sizing" "border-box" ]
+
+            else
+                [ HA.style "display" "inline-block", HA.style "box-sizing" "border-box" ]
+    in
     { title = "WeSchedule"
     , body =
         [ Html.node "style" [] [ Html.text Timeline.styles ]
         , Html.node "style" [] [ Html.text (styles ++ Segment.styles) ]
-        , Timeline.view model.timelineState model.box
-            |> Html.map TimelineMsg
+        , Html.div []
+            [ Timeline.view cssDisplay
+                model.timelineState
+                (if displayTotals then
+                    if model.options.direction == Horizontal then
+                        { width = model.box.width, height = model.box.height - totalsSize }
+
+                    else
+                        { width = model.box.width - totalsSize, height = model.box.height }
+
+                 else
+                    model.box
+                )
+                |> Html.map TimelineMsg
+            , if displayTotals then
+                Timeline.view
+                    (HA.style
+                        (if model.options.direction == Horizontal then
+                            "border-top"
+
+                         else
+                            "border-top"
+                        )
+                        "1px solid #CCC"
+                        :: cssDisplay
+                    )
+                    model.totalState
+                    (if model.options.direction == Horizontal then
+                        { width = model.box.width, height = totalsSize }
+
+                     else
+                        { width = totalsSize, height = model.box.height }
+                    )
+                    |> Html.map TotalsMsg
+
+              else
+                Html.text ""
+            ]
         , Html.div
             [ HA.class "controls"
             , HA.style "position" "absolute"
@@ -971,6 +1051,9 @@ update msg model =
         TimelineMsg tmsg ->
             timelineUpdate tmsg model
 
+        TotalsMsg tmsg ->
+            totalsUpdate tmsg model
+
         Receive data ->
             receiveData data model
 
@@ -1013,7 +1096,16 @@ update msg model =
                                     )
                                 |> Timeline.changeDirection options.direction
                                 |> Timeline.setWrapText options.wrapText
-                                |> Timeline.canEditSections (not options.displaySubtotals)
+                        , totalState =
+                            Timeline.changeStartAndZoom options.start options.zoom model.totalState
+                                |> Timeline.changeDirection options.direction
+                                |> Timeline.changeLineSize
+                                    (if options.direction == Vertical then
+                                        totalsVertSize
+
+                                     else
+                                        totalsHorizSize
+                                    )
                         , options = options
                         , durationUnit = options.durationUnit
                       }
@@ -1213,6 +1305,16 @@ update msg model =
                 | timelineState =
                     Timeline.changeDirection dir model.timelineState
                         |> Timeline.changeLineSize size
+                        |> Timeline.changeYOffset 0
+                , totalState =
+                    Timeline.changeDirection dir model.totalState
+                        |> Timeline.changeLineSize
+                            (if dir == Vertical then
+                                totalsVertSize
+
+                             else
+                                totalsHorizSize
+                            )
                 , options = { options | direction = dir }
               }
             , Bounce.delay 500 OptionsBounceMsg
@@ -1249,6 +1351,7 @@ update msg model =
                                         identity
                                    )
                             )
+                , totalState = Timeline.reinit (addTotals { model | options = { options | countMoments = bool } }) model.totalState
               }
             , Bounce.delay 500 OptionsBounceMsg
             )
@@ -1260,7 +1363,7 @@ update msg model =
             in
             ( { model
                 | timelineState =
-                    Timeline.canEditSections (not bool) model.timelineState
+                    model.timelineState
                         |> Timeline.reinit
                             (removeSubtotals model.timelineState.srcgroups
                                 |> (if bool then
@@ -1292,8 +1395,28 @@ update msg model =
 timelineUpdate : Timeline.Msg -> Model -> ( Model, Cmd Msg )
 timelineUpdate tmsg model =
     let
+        totalsSize =
+            model.totalState.lineSize
+                * toFloat
+                    (List.length model.totalFields
+                        + (if model.options.countMoments then
+                            1
+
+                           else
+                            0
+                          )
+                    )
+                |> round
+
+        box =
+            if model.options.direction == Horizontal then
+                { width = model.box.width, height = model.box.height - totalsSize }
+
+            else
+                { width = model.box.width - totalsSize, height = model.box.height }
+
         ( state, action, tcmd ) =
-            Timeline.update tmsg model.timelineState model.box
+            Timeline.update tmsg model.timelineState box
 
         groupFieldEditable =
             Dict.get model.groupId model.fields
@@ -1394,8 +1517,9 @@ timelineUpdate tmsg model =
                             , wrapText = model.timelineState.wrapText
                             , durationUnit = model.durationUnit
                             , displaySubtotals = model.options.displaySubtotals
-                            , countMoments = model.options.displaySubtotals
+                            , countMoments = model.options.countMoments
                             }
+                        , totalState = Timeline.changeStartAndZoom start zoom model.totalState
                       }
                     , Bounce.delay 500 OptionsBounceMsg
                     )
@@ -1479,6 +1603,50 @@ timelineUpdate tmsg model =
       }
     , Cmd.batch [ cmd, updateFieldCmd, Cmd.map TimelineMsg tcmd ]
     )
+
+
+totalsUpdate : Timeline.Msg -> Model -> ( Model, Cmd Msg )
+totalsUpdate tmsg ({ options } as model) =
+    let
+        totalsSize =
+            model.totalState.lineSize
+                * toFloat
+                    (List.length model.totalFields
+                        + (if model.options.countMoments then
+                            1
+
+                           else
+                            0
+                          )
+                    )
+                |> round
+
+        box =
+            if model.options.direction == Horizontal then
+                { width = model.box.width, height = totalsSize }
+
+            else
+                { width = totalsSize, height = model.box.height }
+
+        ( state, action, tcmd ) =
+            Timeline.update tmsg model.totalState box
+    in
+    case action of
+        Timeline.Action.ChangeZoom { start, zoom } ->
+            ( { model
+                | options =
+                    { options
+                        | start = start
+                        , zoom = zoom
+                    }
+                , timelineState = Timeline.changeStartAndZoom start zoom model.timelineState
+                , totalState = state
+              }
+            , Cmd.batch [ Bounce.delay 500 OptionsBounceMsg, Cmd.map TotalsMsg tcmd ]
+            )
+
+        _ ->
+            ( model, Cmd.none )
 
 
 receiveData : Value -> Model -> ( Model, Cmd Msg )
@@ -1573,6 +1741,9 @@ receiveData data model =
                     else
                         groups
 
+                totalGroups =
+                    addTotals model_
+
                 newtl =
                     case maybeSelection of
                         Nothing ->
@@ -1616,6 +1787,7 @@ receiveData data model =
 
                     else
                         newtl
+                , totalState = Timeline.reinit totalGroups model.totalState
                 , records = recordsDict
                 , fields = fields_
                 , contentFields = content
@@ -1652,6 +1824,54 @@ receiveData data model =
             )
 
 
+addTotals : Model -> List Timeline.Models.Group
+addTotals model =
+    let
+        locale =
+            Field.localeForLanguage model.language
+
+        sections =
+            List.map
+                (\rec ->
+                    { start = rec.date |> Time.millisToPosix
+                    , end = rec.date + (rec.amplitude * 1000 |> round) |> Time.millisToPosix
+                    , id = rec.id |> String.fromInt
+                    }
+                )
+                (Dict.values model.records)
+
+        toValue =
+            \idx id ->
+                Dict.get id model.records
+                    |> Maybe.andThen (\rec -> ListX.getAt idx rec.totals)
+                    |> Maybe.withDefault 1
+    in
+    (if model.options.countMoments then
+        [ { id = "_total_count"
+          , isSubtotal = True
+          , label = [ T.count model.translations ]
+          , sections = computeTotal (always 1) String.fromFloat sections
+          }
+        ]
+
+     else
+        []
+    )
+        ++ List.indexedMap
+            (\idx field ->
+                let
+                    toString =
+                        floatToString locale model.currency field model.fields
+                in
+                { id = "_total_" ++ field
+                , isSubtotal = True
+                , label = [ field ]
+                , sections = computeTotal (toValue idx) toString sections
+                }
+            )
+            model.totalFields
+
+
 addSubtotals : Model -> List Timeline.Models.Group -> List Timeline.Models.Group
 addSubtotals model groups =
     let
@@ -1673,10 +1893,10 @@ addSubtotals model groups =
                     , label =
                         case g.label of
                             x :: _ ->
-                                [ x, "#" ]
+                                [ x, T.count model.translations ]
 
                             _ ->
-                                [ "#" ]
+                                [ T.count model.translations ]
                     , sections = computeTotal (always 1) String.fromFloat g.sections
                   }
                 ]
@@ -1688,21 +1908,7 @@ addSubtotals model groups =
                     (\idx field ->
                         let
                             toString =
-                                Dict.get field model.fields
-                                    |> Maybe.map
-                                        (\f ->
-                                            case f.ofType of
-                                                Field.Int format ->
-                                                    Field.floatToString locale model.currency format
-
-                                                Field.Float format ->
-                                                    Field.floatToString locale model.currency format
-
-                                                _ ->
-                                                    -- Bool
-                                                    String.fromFloat
-                                        )
-                                    |> Maybe.withDefault String.fromFloat
+                                floatToString locale model.currency field model.fields
                         in
                         { g
                             | id = "_subtotal_" ++ field ++ "_" ++ g.id
@@ -1723,12 +1929,31 @@ addSubtotals model groups =
         groups
 
 
+floatToString : Field.Locale -> Field.Currency -> String -> Dict String Field -> Float -> String
+floatToString locale currency field fields float =
+    Dict.get field fields
+        |> Maybe.map
+            (\f ->
+                case f.ofType of
+                    Field.Int format ->
+                        Field.floatToString locale currency format float
+
+                    Field.Float format ->
+                        Field.floatToString locale currency format float
+
+                    _ ->
+                        -- Bool
+                        String.fromFloat float
+            )
+        |> Maybe.withDefault (String.fromFloat float)
+
+
 removeSubtotals : List Timeline.Models.Group -> List Timeline.Models.Group
 removeSubtotals groups =
     List.filter (\g -> String.startsWith "_subtotal_" g.id |> not) groups
 
 
-computeTotal : (String -> Float) -> (Float -> String) -> List Timeline.Models.Section -> List Timeline.Models.Section
+computeTotal : (id -> Float) -> (Float -> String) -> List { a | start : Time.Posix, end : Time.Posix, id : id } -> List Timeline.Models.Section
 computeTotal toValue toString sections =
     let
         evol =
@@ -1736,7 +1961,7 @@ computeTotal toValue toString sections =
                 |> List.sortBy (\( _, _, date ) -> date)
                 |> ListX.groupWhile (\( _, _, a ) ( _, _, b ) -> a == b)
                 |> List.map (\( x, xs ) -> List.foldl (\( c1, v1, date ) ( c2, v2, _ ) -> ( c1 + c2, v1 + v2, date )) x xs)
-                |> List.filter (\( c, _, _ ) -> c /= 0)
+                |> List.filter (\( _, v, _ ) -> v /= 0)
     in
     case evol of
         ( xcount, xval, xdate ) :: xs ->
@@ -1767,7 +1992,7 @@ computeTotal toValue toString sections =
             List.reverse list
 
         _ ->
-            sections
+            []
 
 
 makeFieldUpdate : Model -> String -> String -> Cmd Msg

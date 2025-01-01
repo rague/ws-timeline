@@ -68,7 +68,7 @@ view model =
     , body =
         [ Html.node "style" [] [ Html.text "body {margin:0}" ]
         , Html.node "style" [] [ Html.text Timeline.styles ]
-        , Timeline.view model.timelineState model.box
+        , Timeline.view [] model.timelineState model.box
             |> Html.map TimelineMsg
         ]
     }

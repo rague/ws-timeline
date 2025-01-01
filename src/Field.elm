@@ -1,4 +1,4 @@
-module Field exposing (Align(..), ChoiceId(..), ChoiceRecord, Currency, Field, FieldType(..), NumSign(..), NumberFormat, NumberMode(..), Values(..), choiceIdToRawString, choiceIdToString, currencyFromString, decoder, encodeChoiceId, floatToString, localeForLanguage, standardFloat, standardInt, stringToChoiceId)
+module Field exposing (Align(..), ChoiceId(..), ChoiceRecord, Currency, Field, FieldType(..), Locale, NumSign(..), NumberFormat, NumberMode(..), Values(..), choiceIdToRawString, choiceIdToString, currencyFromString, decoder, encodeChoiceId, floatToString, localeForLanguage, standardFloat, standardInt, stringToChoiceId)
 
 import Dict exposing (Dict)
 import FormatNumber as FNum
@@ -432,6 +432,10 @@ refDecoder defaultChoice =
         |> hardcoded defaultChoice.italic
         |> hardcoded defaultChoice.underline
         |> hardcoded defaultChoice.crossedOut
+
+
+type alias Locale =
+    FNL.Locale
 
 
 localeForLanguage : String -> FNL.Locale

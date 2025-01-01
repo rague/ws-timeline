@@ -12,6 +12,7 @@ defaultLanguage =
                 , ( "color", I18Next.string "Color" )
                 , ( "comment", I18Next.string "Comment" )
                 , ( "content", I18Next.string "content" )
+                , ( "count", I18Next.string "Moment count" )
                 , ( "countMoments", I18Next.string "Count the moments" )
                 , ( "create", I18Next.string "Create" )
                 , ( "cumulativeDuration"

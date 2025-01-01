@@ -31,5 +31,6 @@
     "sum": "Somme : ",
     "totals": "Totaux",
     "countMoments": "Nombre de moments",
-    "displaySubtotals": "Afficher les sous-totaux"
+    "displaySubtotals": "Afficher les sous-totaux",
+    "count": "Nombre de moments"
 }

@@ -75,6 +75,7 @@ findSectionsIds ( fromH, fromV ) ( toH, toV ) groups =
                         if
                             Moment.intersect section.start section.end fromH toH
                                 && intersect (toFloat (sbox.line + gbox.position)) (toFloat (sbox.line + gbox.position) + 1) fromV toV
+                                && not gbox.isSubtotal
                         then
                             addToSelection gbox.id [ section.id ] set
 

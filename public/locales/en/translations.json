@@ -31,5 +31,6 @@
     "sum": "Sum : ",
     "totals": "Totals",
     "countMoments": "Count the moments",
-    "displaySubtotals": "Display subtotals"
+    "displaySubtotals": "Display subtotals",
+    "count": "Moment count"
 }

@@ -121,7 +121,7 @@ sectionsWheel box rect { x, y, dx, dy, altKey, shiftKey } =
 
         offset =
             Basics.max
-                (Basics.min 0 (toFloat -(box.lines + 1) * box.lineSize + toFloat rect.height))
+                (Basics.min 0 (toFloat -(box.lines + 0) * box.lineSize + toFloat rect.height))
                 (Basics.min 0 (box.sectionOffsetY - getter.v ( movex, movey )))
     in
     if altKey then
@@ -309,6 +309,18 @@ sectionsDown box { x, y, altKey, shiftKey, button } =
 
         mbsec =
             findSection posix ( line, 1 - (4 / box.lineSize) ) box.sections
+                |> Maybe.andThen
+                    (\sbox ->
+                        Dict.get sbox.groupId box.groups
+                            |> Maybe.andThen
+                                (\gbox ->
+                                    if gbox.isSubtotal then
+                                        Nothing
+
+                                    else
+                                        Just sbox
+                                )
+                    )
 
         margin =
             6 * duration.day / box.zoom |> round |> Moment.toDuration
@@ -411,6 +423,23 @@ sectionsDown box { x, y, altKey, shiftKey, button } =
 
 sectionsUp : TimelineBox -> Event -> ( TimelineBox, Action, Cmd msg )
 sectionsUp box { x, y } =
+    let
+        selection =
+            mapSelection
+                (\gid set ->
+                    case Dict.get gid box.groups of
+                        Just group ->
+                            if group.isSubtotal then
+                                Set.empty
+
+                            else
+                                set
+
+                        _ ->
+                            Set.empty
+                )
+                box.selection
+    in
     case box.interaction of
         Select selAction _ ids _ ->
             let
@@ -440,10 +469,10 @@ sectionsUp box { x, y } =
                         Axis.getGrid (duration.day / box.zoom)
                 in
                 if mtype == SimpleMove then
-                    ModifySections box.selection ( snapToGridInt grid deltaTime, Moment.toDuration 0 )
+                    ModifySections selection ( snapToGridInt grid deltaTime, Moment.toDuration 0 )
 
                 else
-                    CloneSections box.selection (snapToGridInt grid deltaTime) Nothing
+                    CloneSections selection (snapToGridInt grid deltaTime) Nothing
 
               else if deltaLine /= 0 then
                 let
@@ -455,11 +484,14 @@ sectionsUp box { x, y } =
                 in
                 case destGroup of
                     Maybe.Just g ->
-                        if mtype == SimpleMove then
-                            MoveSections box.selection g.id
+                        if g.isSubtotal then
+                            NoAction
+
+                        else if mtype == SimpleMove then
+                            MoveSections selection g.id
 
                         else
-                            CloneSections box.selection (Moment.toDuration 0) (Just g.id)
+                            CloneSections selection (Moment.toDuration 0) (Just g.id)
 
                     Maybe.Nothing ->
                         NoAction
@@ -479,7 +511,7 @@ sectionsUp box { x, y } =
                         Axis.getGrid (duration.day / box.zoom)
 
                     minDuration =
-                        minDurationOf box.groups box.selection
+                        minDurationOf box.groups selection
 
                     unit =
                         grid.snap * 3600000
@@ -490,7 +522,7 @@ sectionsUp box { x, y } =
                     deltaSnap =
                         snapToGridInt grid <| Moment.mapDuration (\d -> min d (minDuration - minSnap)) delta
                 in
-                ModifySections box.selection ( deltaSnap, Moment.mapDuration negate deltaSnap )
+                ModifySections selection ( deltaSnap, Moment.mapDuration negate deltaSnap )
 
               else
                 NoAction
@@ -507,7 +539,7 @@ sectionsUp box { x, y } =
                         Axis.getGrid (duration.day / box.zoom)
 
                     minDuration =
-                        minDurationOf box.groups box.selection
+                        minDurationOf box.groups selection
 
                     unit =
                         grid.snap * 3600000
@@ -518,7 +550,7 @@ sectionsUp box { x, y } =
                     deltaSnap =
                         snapToGridInt grid <| Moment.mapDuration (\d -> max d (minSnap - minDuration)) delta
                 in
-                ModifySections box.selection ( Moment.toDuration 0, deltaSnap )
+                ModifySections selection ( Moment.toDuration 0, deltaSnap )
 
               else
                 NoAction
@@ -529,10 +561,24 @@ sectionsUp box { x, y } =
             let
                 maybe =
                     findGroupAtPosition lineInt box
-                        |> Maybe.map .id
+
+                maybeGId =
+                    Maybe.map .id maybe
+
+                create =
+                    case maybe of
+                        Just g ->
+                            not g.isSubtotal
+
+                        _ ->
+                            False
             in
             ( { box | interaction = mouseOverInteraction box x y }
-            , CreateSection maybe start end
+            , if create then
+                CreateSection maybeGId start end
+
+              else
+                NoAction
             , Cmd.none
             )
 
@@ -568,7 +614,7 @@ groupsWheel box rect { clientY, dx, dy, altKey, shiftKey } =
                 , zoomChange = 10
                 , sectionOffsetY =
                     Basics.max
-                        (Basics.min 0 (toFloat -(box.lines + 1) * lineSize + toFloat rect.height))
+                        (Basics.min 0 (toFloat -(box.lines + 0) * lineSize + toFloat rect.height))
                         (Basics.min 0 <| box.sectionOffsetY - (((clientY - toFloat rect.top) - box.sectionOffsetY) / box.lineSize * (lineSize - box.lineSize)))
             }
 
@@ -586,7 +632,7 @@ groupsWheel box rect { clientY, dx, dy, altKey, shiftKey } =
 
             offset =
                 Basics.max
-                    (Basics.min 0 (toFloat -(box.lines + 1) * box.lineSize + toFloat rect.height))
+                    (Basics.min 0 (toFloat -(box.lines + 0) * box.lineSize + toFloat rect.height))
                     (Basics.min 0 (box.sectionOffsetY - getter.v ( movex, movey )))
         in
         changeWheelAction
