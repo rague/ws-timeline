@@ -43,7 +43,7 @@ import Widget.Translations as T
 
 
 totalsHorizSize =
-    22
+    25
 
 
 totalsVertSize =
