@@ -2206,7 +2206,7 @@ styles =
 body {
     font-family: sans-serif;
     font-size: 13px;
-    color: var(--grist-theme-input-fg, black);
+    color: black;
 }
 .field {
     padding-top: 3px;
@@ -2240,11 +2240,12 @@ body {
 .field > label  input {
     display: block;
     margin-top: 2px;
-    color: var(--grist-theme-input-fg, black);
+    color: black;
+    background-color: white;
     outline: none;
     height: 28px;
     font-size: 13px;
-    border: 1px solid var(--grist-theme-input-border, var(--grist-color-dark-grey));
+    border: 1px solid lightgrey;
     border-radius: 3px;
     padding: 0 3px;
 
@@ -2265,10 +2266,11 @@ input[type="checkbox"] {
 
 .field  select {
     margin-top: 1px;
-    color: var(--grist-theme-input-fg, black);
+    color: black;
+    background-color: #F7F7F7;
     height: 28px;
     font-size: 13px;
-    border: 1px solid var(--grist-theme-input-border, var(--grist-color-dark-grey));
+    border: 1px solid #BBB;
     border-radius: 3px;
     width:100%;
     display: inline-block;

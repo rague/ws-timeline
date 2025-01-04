@@ -4,15 +4,12 @@ import Bounce exposing (Bounce)
 import Browser
 import Browser.Dom
 import Browser.Events
-import Css
 import Date
 import Dict exposing (Dict)
 import Field exposing (Field)
 import Html
 import Html.Attributes as HA
 import Html.Events
-import Html.Styled as Styled
-import Html.Styled.Attributes as SA
 import Http
 import I18Next
 import Iso8601
@@ -26,8 +23,8 @@ import Moment
 import Money
 import Phosphor exposing (IconWeight(..))
 import Platform.Cmd as Cmd
-import Select
-import Select.Styles as Styles
+import Selectize
+import Selectize.Internal
 import Set
 import Svg.Attributes exposing (amplitude)
 import Task
@@ -64,7 +61,7 @@ type Msg
     | ChangeText View String String
     | ValidateText View String String
     | CancelChange View String
-    | SelectMsg View String (Select.Msg Field.ChoiceId)
+    | SelectizeMsg View String (Maybe Field.ChoiceRecord) (Selectize.Msg Field.ChoiceRecord)
     | FocusField String
     | CreateNew
     | NoOp
@@ -107,7 +104,7 @@ type alias Model =
     , focus : String
     , options : Options
     , records : Dict String Record
-    , selectStates : Dict String Select.State
+    , selectStates : Dict String (Selectize.State Field.ChoiceRecord)
     , showInspector : Bool
     , language : String
     , currency : Field.Currency
@@ -584,13 +581,13 @@ inspectorView model fields states =
             , HA.style "top" "0px"
             , HA.style "width" "200px"
             , HA.style "height" ((model.box.height |> String.fromInt) ++ "px")
-            , HA.style "background-color" "#f7f7f7"
-            , HA.style "font-family" "Arial, Helvetica, sans-serif"
+            , HA.style "background-color" "var(--grist-theme-page-panels-right-panel-bg, var(--grist-color-light-grey))"
+            , HA.style "font-family" "-apple-system, \"system-ui\", \"Segoe UI\", \"Liberation Sans\", Helvetica, Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\""
             , HA.style "font-size" "12px"
             , HA.style "overflow-y" "scroll"
             , HA.style "z-index" "2"
             , HA.style "box-shadow" "rgba(0,0,0,0.1) 1px 0px 14px"
-            , HA.style "border-left" "1px solid #DDD"
+            , HA.style "border-left" "1px solid var(--grist-theme-page-panels-border, var(--grist-color-medium-grey))"
             , HA.style "padding" "10px"
             , HA.style "box-sizing" "border-box"
             ]
@@ -659,56 +656,94 @@ fieldsView v ({ translations } as model) fields states =
                         let
                             selectedItem =
                                 Maybe.andThen Field.stringToChoiceId field.str
-                                    |> Maybe.map
+                                    |> Maybe.andThen
                                         (\choiceid ->
-                                            let
-                                                lbl =
-                                                    ListX.find (\c -> c.id == choiceid) choices
-                                                        |> Maybe.map .label
-                                                        |> Maybe.withDefault (Field.choiceIdToString choiceid)
-                                            in
-                                            Select.basicMenuItem { item = choiceid, label = lbl }
+                                            ListX.find (\c -> c.id == choiceid || c.label == Maybe.withDefault "" field.str) choices
                                         )
 
-                            -- Maybe.andThen (\str -> ListX.find (\c -> c.label == str) choices) field.str
-                            -- |> Maybe.map (\c -> Select.basicMenuItem { item = c.id, label = c.label })
+                            -- |> Debug.log ("WS: selectedItem " ++ Maybe.withDefault "-" field.str)
                         in
-                        Select.view
-                            (Select.single selectedItem
-                                |> Select.disabled field.field.isFormula
-                                |> Select.state selectState
-                                |> Select.menuItems
-                                    (List.map
-                                        (\c ->
-                                            Select.customMenuItem
-                                                { item = c.id
-                                                , label = c.label
-                                                , view =
-                                                    Styled.span
-                                                        [ SA.css
-                                                            [ Css.backgroundColor <| Css.hex c.backgroundColor
-                                                            , Css.color <| Css.hex c.textColor
-                                                            , Css.padding (Css.px 3)
-                                                            , Css.borderRadius (Css.px 3)
-                                                            ]
+                        Selectize.view
+                            (Selectize.viewConfig
+                                { container =
+                                    [ HA.class "selectize__container" ]
+                                , menu =
+                                    \open ->
+                                        [ HA.class "selectize__menu"
+                                        , HA.classList [ ( "open", open ) ]
+                                        ]
+                                , ul =
+                                    [ HA.class "selectize__list" ]
+                                , entry =
+                                    \choice mouseFocused keyboardFocused ->
+                                        { attributes =
+                                            [ HA.class "selectize__item"
+                                            , HA.classList
+                                                [ ( "selectize__item--mouse-selected"
+                                                  , mouseFocused
+                                                  )
+                                                , ( "selectize__item--key-selected"
+                                                  , keyboardFocused
+                                                  )
+                                                ]
+                                            ]
+                                        , children =
+                                            [ Html.span
+                                                [ HA.style "background-color" choice.backgroundColor
+                                                , HA.style "color" choice.textColor
+                                                , HA.style "padding" "3px"
+                                                , HA.style "border-radius" "3px"
+                                                ]
+                                                [ Html.text
+                                                    choice.label
+                                                ]
+                                            ]
+                                        }
+                                , divider =
+                                    \title ->
+                                        { attributes =
+                                            [ HA.class "selectize__divider" ]
+                                        , children =
+                                            [ Html.text title ]
+                                        }
+                                , input =
+                                    Selectize.autocomplete <|
+                                        { attrs =
+                                            \sthSelected open ->
+                                                [ HA.class "selectize__textfield"
+                                                , HA.classList
+                                                    [ ( "selectize__textfield--selection", sthSelected )
+                                                    , ( "selectize__textfield--no-selection", not sthSelected )
+                                                    , ( "selectize__textfield--menu-open", open )
+                                                    ]
+                                                ]
+                                        , toggleButton =
+                                            Just <|
+                                                \open ->
+                                                    Html.div
+                                                        [ HA.class "selectize__menu-toggle"
                                                         ]
-                                                        [ Styled.text c.label ]
-                                                }
-                                        )
-                                        choices
-                                    )
-                                |> Select.placeholder
-                                    (if field.multi then
-                                        "<multiple>"
+                                                        [ (if open then
+                                                            Phosphor.caretDown Regular
 
-                                     else
-                                        "<vide>"
-                                    )
-                                |> Select.setStyles selectStyles
-                                |> Select.clearable True
+                                                           else
+                                                            Phosphor.caretDown Regular
+                                                          )
+                                                            |> Phosphor.toHtml []
+                                                        ]
+                                        , clearButton = Just <| Html.div [ HA.class "selectize__menu-clear" ] [ Phosphor.x Regular |> Phosphor.toHtml [] ]
+                                        , placeholder =
+                                            if field.multi then
+                                                "<" ++ T.multiple model.translations ++ ">"
+
+                                            else
+                                                "<" ++ T.empty model.translations ++ ">"
+                                        }
+                                }
                             )
-                            |> Styled.toUnstyled
-                            |> Html.map (SelectMsg v field.name)
+                            selectedItem
+                            selectState
+                            |> Html.map (SelectizeMsg v field.name selectedItem)
 
                     Nothing ->
                         Html.text ""
@@ -722,7 +757,7 @@ fieldsView v ({ translations } as model) fields states =
           )
             |> Html.text
             |> List.singleton
-            |> Html.div []
+            |> Html.div [ HA.class "label" ]
         , (case model.durationUnit of
             Hours ->
                 T.cumulativeDuration translations
@@ -1186,76 +1221,80 @@ update msg model =
         NoOp ->
             ( model, Cmd.none )
 
-        SelectMsg v field selectMsg ->
-            let
-                fields =
-                    case v of
-                        Inspector ->
-                            model.editableStates
-
-                        NewMoment ->
-                            model.groupsStates
-            in
+        SelectizeMsg v field selectedItem selectizeMsg ->
             case Dict.get field model.selectStates of
                 Just selectState ->
                     let
-                        ( maybeAction, updatedSelectState, selectCmds ) =
-                            Select.update selectMsg selectState
+                        ( newMenu, menuCmd, action ) =
+                            Selectize.update
+                                selectedItem
+                                selectState
+                                selectizeMsg
 
-                        ( newDict, updMsg ) =
-                            case maybeAction of
-                                Just (Select.Select item) ->
-                                    ( Dict.insert field (Val (Field.choiceIdToString item)) fields
-                                      -- Dict.get field fields
-                                      -- |> Maybe.andThen
-                                      --     (\( f, _ ) ->
-                                      --         case f.ofType of
-                                      --             Field.Choice choices ->
-                                      --                 ListX.find (\c -> c.id == item) choices
-                                      --             Field.Ref choices ->
-                                      --                 ListX.find (\c -> c.id == item) choices
-                                      --             _ ->
-                                      --                 Nothing
-                                      --     )
-                                      -- |> Maybe.map
-                                      --     (\choice ->
-                                      --         Dict.update field (Maybe.map <| \( f, _ ) -> ( f, Val choice.label )) fields
-                                      --     )
-                                      -- |> Maybe.withDefault fields
-                                    , makeFieldUpdate_ model.timelineState.selection field (Field.encodeChoiceId item)
+                        newModel =
+                            { model | selectStates = Dict.insert field newMenu model.selectStates }
+
+                        cmd =
+                            menuCmd |> Cmd.map (SelectizeMsg v field selectedItem)
+                    in
+                    case action of
+                        Selectize.Internal.ChangeSelection validate maybechoice ->
+                            let
+                                updsel =
+                                    \fields ->
+                                        case maybechoice of
+                                            Just choice ->
+                                                ( Dict.insert field (Val (Field.choiceIdToString choice.id)) fields
+                                                , if validate then
+                                                    makeFieldUpdate_ model.timelineState.selection field (Field.encodeChoiceId choice.id)
+
+                                                  else
+                                                    Cmd.none
+                                                )
+
+                                            Nothing ->
+                                                case v of
+                                                    Inspector ->
+                                                        ( Dict.insert field (Error NoValue "") fields
+                                                        , if validate then
+                                                            makeFieldUpdate_ model.timelineState.selection field (Encode.string "")
+
+                                                          else
+                                                            Cmd.none
+                                                        )
+
+                                                    NewMoment ->
+                                                        ( Dict.insert field (Error NoValue "") fields
+                                                        , Cmd.none
+                                                        )
+                            in
+                            case v of
+                                Inspector ->
+                                    let
+                                        ( newDict, updMsg ) =
+                                            updsel newModel.editableStates
+                                    in
+                                    ( { newModel
+                                        | editableStates = newDict
+                                      }
+                                    , Cmd.batch [ updMsg, menuCmd |> Cmd.map (SelectizeMsg v field maybechoice) ]
                                     )
 
-                                Just Select.Clear ->
-                                    case v of
-                                        Inspector ->
-                                            ( fields
-                                            , makeFieldUpdate_ model.timelineState.selection field (Encode.string "")
-                                            )
+                                NewMoment ->
+                                    let
+                                        ( newDict, _ ) =
+                                            updsel newModel.groupsStates
+                                    in
+                                    ( { newModel
+                                        | groupsStates = newDict
+                                      }
+                                    , menuCmd |> Cmd.map (SelectizeMsg v field maybechoice)
+                                    )
 
-                                        NewMoment ->
-                                            ( Dict.insert field (Error NoValue "") fields
-                                            , Cmd.none
-                                            )
-
-                                _ ->
-                                    ( fields, Cmd.none )
-                    in
-                    case v of
-                        Inspector ->
-                            ( { model
-                                | selectStates = Dict.insert field updatedSelectState model.selectStates
-                                , editableStates = newDict
-                              }
-                            , Cmd.batch [ updMsg, Cmd.map (SelectMsg v field) selectCmds ]
-                            )
-
-                        NewMoment ->
-                            ( { model
-                                | selectStates = Dict.insert field updatedSelectState model.selectStates
-                                , groupsStates = newDict
-                              }
-                            , Cmd.map (SelectMsg v field) selectCmds
-                            )
+                        -- update nextMsg newModel
+                        -- |> Tuple.mapSecond (\a -> Cmd.batch [ a, cmd ])
+                        _ ->
+                            ( newModel, cmd )
 
                 Nothing ->
                     ( model, Cmd.none )
@@ -1804,12 +1843,24 @@ receiveData data model =
                             Maybe.andThen
                                 (\field ->
                                     case field.ofType of
-                                        Field.Choice _ ->
-                                            Just ( field.id, Select.initState (Select.selectIdentifier field.id) )
+                                        Field.Choice choices ->
+                                            Just <|
+                                                ( field.id
+                                                , Selectize.closed ("_select_" ++ field.id)
+                                                    .label
+                                                    (choices |> List.map Selectize.entry)
+                                                )
 
-                                        Field.Ref _ ->
-                                            Just ( field.id, Select.initState (Select.selectIdentifier field.id) )
+                                        -- Just ( field.id, Select.initState (Select.selectIdentifier field.id) )
+                                        Field.Ref choices ->
+                                            Just <|
+                                                ( field.id
+                                                , Selectize.closed ("_select_" ++ field.id)
+                                                    .label
+                                                    (choices |> List.map Selectize.entry)
+                                                )
 
+                                        -- Just ( field.id, Select.initState (Select.selectIdentifier field.id) )
                                         _ ->
                                             Nothing
                                 )
@@ -2694,6 +2745,10 @@ input[type="checkbox"] {
     accent-color: steelblue;
 }
 
+.label {
+    color: var(--grist-theme-text, var(--grist-color-dark));
+}
+
 .field {
     padding-top: 10px;
 }
@@ -2703,7 +2758,7 @@ input[type="checkbox"] {
     font-size: 10px;
     color: var(--grist-theme-text, var(--grist-color-dark));
     display: block;
-
+    margin-bottom: 5px;
     .unit {
         text-transform: none;
     }
@@ -2716,6 +2771,7 @@ input[type="checkbox"] {
     outline: none;
     font-size: 13px;
     border: 1px solid var(--grist-theme-input-border, var(--grist-color-dark-grey));
+    background-color: var(--grist-theme-input-bg, white);
     border-radius: 3px;
     padding: 6px;
 
@@ -2735,12 +2791,13 @@ input[type="checkbox"] {
 .modal {
     position: absolute;
     top: 20px;
-    background-color: white;
+    background-color: var(--grist-theme-menu-bg, white);
+    color: var(--grist-theme-text, var(--grist-color-dark));
     padding: 10px 30px 30px 30px;
     max-width: 80%;
     max-height: 90%;
     font-family: sans-serif;
-    font-size: 14px;
+    font-size: 13px;
     box-shadow: 0px 10px 24px 0px rgba(0,0,0,0.34);
 
     h1 {
@@ -2754,7 +2811,7 @@ input[type="checkbox"] {
     label {
         text-transform: uppercase;
         font-size: 10px;
-        color: #262626;
+        color: var(--grist-theme-text, var(--grist-color-dark));
         display: block;
     }
 }
@@ -2811,6 +2868,7 @@ input[type="checkbox"] {
     border: none;
     font-size: 10px;
     background-color: #DDD;
+    color: black;
     border-radius: 50px;
     padding: 5px;
     cursor: pointer;
@@ -2834,20 +2892,93 @@ input[type="checkbox"] {
 }
 
 .calcul {
-    color: grey;
+    color: var(--grist-theme-text-light, var(--grist-color-slate));
     font-size: 11px;
 }
+
+
+
+.selectize__textfield {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    color: var(--grist-theme-input-fg, black);
+    outline: none;
+    font-size: 13px;
+    border: 1px solid var(--grist-theme-input-border, var(--grist-color-dark-grey));
+    background-color: var(--grist-theme-input-bg, white);
+    border-radius: 3px;
+    padding: 6px;
+    padding-right: 30px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.selectize__menu-toggle {
+    color: var(--grist-theme-input-fg, black);
+    display: flex;
+    flex-flow: column;
+    justify-content: center;
+    height: 30px;
+    width: 20px;
+    cursor: pointer;
+}
+.selectize__menu-clear {
+    color: var(--grist-theme-input-fg, black);
+    display: flex;
+    flex-flow: column;
+    justify-content: center;
+    height: 30px;
+    width: 15px;
+    cursor: pointer;
+}
+
+.selectize__menu {
+    z-index: 2000;
+    width: 100%;
+    margin-top: 5px;
+    background: white;
+    color: black;
+    max-height: 20rem;
+    overflow: scroll;
+    padding: 0;
+    margin: 2px 0 0 0;
+    color: var(--grist-theme-input-fg, black);
+    background-color: var(--grist-theme-input-bg, white);
+    border-radius: 2px;
+    box-sizing: border-box;
+    
+    &.open {
+        box-shadow: 0 2px 20px 0 var(--grist-theme-menu-shadow, rgba(38, 38, 51, 0.6));
+    }
+    
+}
+
+.selectize__list {
+    font-family: "Source Sans Pro", "Helvetica Neue", Arial, sans-serif;
+    font-weight: normal;
+}
+
+.selectize__list {
+    list-style: none;
+    padding: 0;
+    margin: auto;
+    overflow-y: auto;
+}
+
+.selectize__item {
+    display: block;
+    padding: 0px 3px;
+    cursor: pointer;
+    line-height: 24px;
+}
+
+.selectize__item--key-selected {
+    background-color: steelblue;
+    color: white;
+}
+
+.selectize__item--mouse-selected {
+    background-color: rgba(70, 130, 180, 0.3);
+}
 """
-
-
-selectStyles : Styles.Config
-selectStyles =
-    Styles.default
-        |> Styles.setControlStyles
-            (Styles.getControlConfig Styles.default
-                |> Styles.setControlMinHeight 30
-                |> Styles.setControlBorderRadius 3
-                |> Styles.setControlBorderColor (Css.hex "#DDD")
-                |> Styles.setControlBorderColorFocus (Css.rgba 0 0 0 0)
-                |> Styles.setControlIndicatorPadding 3
-            )

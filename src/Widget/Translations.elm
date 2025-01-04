@@ -63,6 +63,11 @@ editableColumns translations =
     I18Next.tf translations "editableColumns"
 
 
+empty : List I18Next.Translations -> String
+empty translations =
+    I18Next.tf translations "empty"
+
+
 endDate : List I18Next.Translations -> String
 endDate translations =
     I18Next.tf translations "endDate"
@@ -106,6 +111,11 @@ moment translations =
 momentPlural : List I18Next.Translations -> String
 momentPlural translations =
     I18Next.tf translations "moment_plural"
+
+
+multiple : List I18Next.Translations -> String
+multiple translations =
+    I18Next.tf translations "multiple"
 
 
 newMoment : List I18Next.Translations -> String

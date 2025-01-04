@@ -32,5 +32,7 @@
     "totals": "Totals",
     "countMoments": "Count the moments",
     "displaySubtotals": "Display subtotals",
-    "count": "Moment count"
+    "count": "Moment count",
+    "empty": "empty",
+    "multiple": "multiple"
 }
