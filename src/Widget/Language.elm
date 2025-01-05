@@ -9,7 +9,9 @@ defaultLanguage =
         [ ( ""
           , I18Next.object
                 [ ( "Hours", I18Next.string "Hours" )
+                , ( "auto", I18Next.string "Auto" )
                 , ( "color", I18Next.string "Color" )
+                , ( "colorScheme", I18Next.string "Timeline colors" )
                 , ( "comment", I18Next.string "Comment" )
                 , ( "content", I18Next.string "content" )
                 , ( "count", I18Next.string "Moment count" )
@@ -18,6 +20,7 @@ defaultLanguage =
                 , ( "cumulativeDuration"
                   , I18Next.string "Cumulative duration: "
                   )
+                , ( "dark", I18Next.string "Dark" )
                 , ( "daysShort", I18Next.string "d" )
                 , ( "displaySubtotals", I18Next.string "Display subtotals" )
                 , ( "duration", I18Next.string "Duration" )
@@ -28,6 +31,7 @@ defaultLanguage =
                 , ( "horizontal", I18Next.string "Horizontal" )
                 , ( "hoursShort", I18Next.string "h" )
                 , ( "isLocked", I18Next.string "Is locked" )
+                , ( "light", I18Next.string "Light" )
                 , ( "minutes", I18Next.string "Minutes" )
                 , ( "minutesShort", I18Next.string "mn" )
                 , ( "moment", I18Next.string "moment" )

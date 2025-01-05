@@ -34,5 +34,9 @@
     "displaySubtotals": "Display subtotals",
     "count": "Moment count",
     "empty": "empty",
-    "multiple": "multiple"
+    "multiple": "multiple",
+    "colorScheme": "Timeline colors",
+    "light": "Light",
+    "dark": "Dark",
+    "auto": "Auto"
 }

@@ -317,8 +317,8 @@ hview attrs locale zone displayAxis width height from to =
                                             0
                                 , y2 <| String.fromInt height
 
-                                -- , stroke lineColor
-                                , stroke (Color.hsl 1 0 (1 - (weight / 5)) |> Color.toCssString)
+                                -- , stroke (Color.hsl 1 0 (1 - (weight / 5)) |> Color.toCssString)
+                                , SA.class ("axis-line-" ++ (weight * 10 |> round |> String.fromInt))
                                 , strokeWidth "1" --<| String.fromFloat weight
                                 ]
                                 []
@@ -329,6 +329,7 @@ hview attrs locale zone displayAxis width height from to =
                                     [ x <| String.fromFloat (2 + left)
                                     , y <| String.fromFloat (-15 * top + 45)
                                     , SA.style ("font-size:" ++ String.fromFloat size ++ "px")
+                                    , SA.class "axis-text"
                                     ]
                                     [ text label ]
 
@@ -384,8 +385,11 @@ vview attrs locale zone displayAxis width height from to =
                                         else
                                             0
                                 , x2 <| String.fromInt width
-                                , stroke lineColor
-                                , strokeWidth <| String.fromFloat weight
+                                , SA.class ("axis-line-" ++ (weight * 10 |> round |> String.fromInt))
+
+                                -- , stroke lineColor
+                                -- , strokeWidth <| String.fromFloat weight
+                                , strokeWidth "1"
                                 ]
                                 []
 
@@ -398,6 +402,7 @@ vview attrs locale zone displayAxis width height from to =
                                     , x <| String.fromFloat (vpos left + 175)
                                     , SA.textAnchor "end"
                                     , SA.style ("font-size:" ++ String.fromFloat size ++ "px")
+                                    , SA.class "axis-text"
                                     ]
                                     [ text label ]
 

@@ -2415,13 +2415,26 @@ styles =
         , prop "position" "relative"
         , prop "font-family" "sans-serif"
         , prop "overflow" "hidden"
+        , child ".axis-text"
+            [ prop "fill" "black"
+            ]
+        , child ".axis-line-5"
+            [ prop "stroke" "#DDD"
+            ]
+        , child ".axis-line-10"
+            [ prop "stroke" "#AAA"
+            ]
+        , child ".axis-line-20"
+            [ prop "stroke" "#666"
+            ]
         , child ".group div" [ prop "white-space" "wrap" ]
         , child ".group.move" [ prop "background-color" "#77f" ]
         , child ".group.even"
             [ prop "background-color" "#f7f7f7"
             , prop "box-sizing" "border-box"
-            , prop "border-top" "solid 1px #eaeaea"
-            , prop "border-bottom" "solid 1px #eaeaea"
+            , prop "border-top" "solid 1px"
+            , prop "border-bottom" "solid 1px"
+            , prop "border-color" "#eaeaea"
             ]
 
         -- , child ".group.even.selected"
@@ -2430,8 +2443,9 @@ styles =
         , child ".group.veven"
             [ prop "background-color" "#f7f7f7"
             , prop "box-sizing" "border-box"
-            , prop "border-left" "solid 1px #eaeaea"
-            , prop "border-right" "solid 1px #eaeaea"
+            , prop "border-left" "solid 1px"
+            , prop "border-right" "solid 1px"
+            , prop "border-color" "#eaeaea"
             ]
         , child ".group.odd" [ prop "background-color" "white" ]
 

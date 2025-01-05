@@ -6,6 +6,7 @@ import Browser.Dom
 import Browser.Events
 import Date
 import Dict exposing (Dict)
+import Element exposing (Color)
 import Field exposing (Field)
 import Html
 import Html.Attributes as HA
@@ -15,7 +16,7 @@ import I18Next
 import Iso8601
 import Json.Decode as Decode exposing (Decoder, Value, maybe)
 import Json.Decode.Extra as DecodeX
-import Json.Decode.Pipeline exposing (optional, required)
+import Json.Decode.Pipeline exposing (custom, optional, required)
 import Json.Encode as Encode
 import List.Extra as ListX
 import Markdown
@@ -75,6 +76,7 @@ type Msg
     | UpdateDurationUnit DurationUnit
     | UpdateShowSubtotals Bool
     | UpdateCountMoments Bool
+    | UpdateColorScheme (Maybe ColorScheme)
 
 
 type View
@@ -113,6 +115,7 @@ type alias Model =
     , showModal : Modal
     , durationUnit : DurationUnit
     , hasCreated : Bool
+    , colorScheme : ColorScheme
     }
 
 
@@ -243,7 +246,7 @@ init flags =
       , groupId = ""
       , subgroupId = Nothing
       , totalFields = []
-      , options = Options (Time.millisToPosix 0) 0 0 38 Horizontal False du False False
+      , options = Options (Time.millisToPosix 0) 0 0 38 Horizontal False du False False Nothing
       , records = Dict.empty
       , selectStates = Dict.empty
       , focus = ""
@@ -255,6 +258,7 @@ init flags =
       , translations = [ defaultLanguage ]
       , durationUnit = du
       , hasCreated = False
+      , colorScheme = Light
       }
       -- , initialSizeCmd
     , Cmd.batch
@@ -296,6 +300,16 @@ view model =
     , body =
         [ Html.node "style" [] [ Html.text Timeline.styles ]
         , Html.node "style" [] [ Html.text (styles ++ Segment.styles) ]
+        , Html.node "style"
+            []
+            [ Html.text <|
+                case model.options.colorScheme |> Maybe.withDefault model.colorScheme of
+                    Light ->
+                        "body {background-color: white;}"
+
+                    Dark ->
+                        darkStyle
+            ]
         , Html.div []
             [ Timeline.view cssDisplay
                 model.timelineState
@@ -458,6 +472,13 @@ settingsView model =
                 model.timelineState.direction
                 [ { value = Horizontal, label = Html.text (T.horizontal model.translations) }
                 , { value = Vertical, label = Html.text (T.vertical model.translations) }
+                ]
+            , Html.label [ HA.style "margin-top" "20px" ] [ Html.text (T.colorScheme model.translations) ]
+            , Segment.radio UpdateColorScheme
+                model.options.colorScheme
+                [ { value = Just Light, label = Html.text (T.light model.translations) }
+                , { value = Just Dark, label = Html.text (T.dark model.translations) }
+                , { value = Nothing, label = Html.text (T.auto model.translations) }
                 ]
             , Html.label [ HA.style "margin-top" "20px" ]
                 [ Html.input
@@ -1430,6 +1451,17 @@ update msg model =
             , Bounce.delay 500 OptionsBounceMsg
             )
 
+        UpdateColorScheme maybe ->
+            let
+                options =
+                    model.options
+            in
+            ( { model
+                | options = { options | colorScheme = maybe }
+              }
+            , Bounce.delay 500 OptionsBounceMsg
+            )
+
 
 timelineUpdate : Timeline.Msg -> Model -> ( Model, Cmd Msg )
 timelineUpdate tmsg model =
@@ -1557,6 +1589,7 @@ timelineUpdate tmsg model =
                             , durationUnit = model.durationUnit
                             , displaySubtotals = model.options.displaySubtotals
                             , countMoments = model.options.countMoments
+                            , colorScheme = model.options.colorScheme
                             }
                         , totalState = Timeline.changeStartAndZoom start zoom model.totalState
                       }
@@ -1710,7 +1743,7 @@ receiveData data model =
             , Cmd.none
             )
 
-        Ok { records, content, maybeSelection, fields, editable, totals, group, subgroup } ->
+        Ok { records, content, maybeSelection, fields, editable, totals, group, subgroup, colorScheme } ->
             let
                 locale =
                     Field.localeForLanguage model.language
@@ -1870,6 +1903,7 @@ receiveData data model =
                         |> Dict.fromList
                 , showInspector = maybeSelection /= Nothing
                 , hasCreated = False
+                , colorScheme = colorScheme
               }
             , cmd
             )
@@ -2539,8 +2573,8 @@ dureeField trans =
 defaultChoice =
     { id = Field.ChoiceString "def"
     , label = "def"
-    , textColor = "#000"
-    , backgroundColor = "#EEE"
+    , textColor = ""
+    , backgroundColor = ""
     , bold = False
     , italic = False
     , underline = False
@@ -2568,22 +2602,41 @@ type alias ReceiveData =
     , totals : List String
     , group : String
     , subgroup : Maybe String
+    , colorScheme : ColorScheme
     }
+
+
+type ColorScheme
+    = Light
+    | Dark
+
+
+colorSchemeDecoder : Decoder ColorScheme
+colorSchemeDecoder =
+    Decode.string
+        |> Decode.map
+            (\str ->
+                case str of
+                    "dark" ->
+                        Dark
+
+                    _ ->
+                        Light
+            )
 
 
 receiveDecoder : Decoder ReceiveData
 receiveDecoder =
-    Decode.map8 ReceiveData
-        (Decode.field "rows" <| Decode.list recordDecoder)
-        (Decode.maybe <| Decode.field "selection" (Decode.list Decode.int))
-        (Decode.field "fields"
-            (Decode.list (Field.decoder defaultChoice))
-        )
-        (Decode.field "content" <| Decode.list Decode.string)
-        (Decode.field "editable" <| Decode.list Decode.string)
-        (Decode.field "totals" <| Decode.list Decode.string)
-        (Decode.field "group" Decode.string)
-        (Decode.field "subgroup" (Decode.maybe Decode.string))
+    Decode.succeed ReceiveData
+        |> custom (Decode.field "rows" <| Decode.list recordDecoder)
+        |> custom (Decode.maybe <| Decode.field "selection" (Decode.list Decode.int))
+        |> custom (Decode.field "fields" (Decode.list (Field.decoder defaultChoice)))
+        |> custom (Decode.field "content" <| Decode.list Decode.string)
+        |> custom (Decode.field "editable" <| Decode.list Decode.string)
+        |> custom (Decode.field "totals" <| Decode.list Decode.string)
+        |> custom (Decode.field "group" Decode.string)
+        |> custom (Decode.field "subgroup" (Decode.maybe Decode.string))
+        |> custom (Decode.field "colorScheme" colorSchemeDecoder)
 
 
 recordDecoder : Decoder Record
@@ -2630,6 +2683,7 @@ type alias Options =
     , durationUnit : DurationUnit
     , displaySubtotals : Bool
     , countMoments : Bool
+    , colorScheme : Maybe ColorScheme
     }
 
 
@@ -2645,6 +2699,7 @@ optionsDecoder =
         |> optional "durationUnit" durationUnitDecoder Hours
         |> optional "displaySubtotals" Decode.bool False
         |> optional "countMoments" Decode.bool False
+        |> optional "colorScheme" (Decode.maybe colorSchemeDecoder) Nothing
 
 
 encodeOptions : Options -> Value
@@ -2730,13 +2785,56 @@ numericOrBoolDecoder =
         ]
 
 
+darkStyle =
+    """
+body {
+    background-color: var(--grist-theme-menu-bg, white);
+}  
+.controls button {
+        background-color: #555;
+        color: var(--grist-theme-text, var(--grist-color-dark));
+
+        &:hover {
+            background-color: #777;
+        }
+    }
+
+.timeline {
+    .group {
+        color: var(--grist-theme-text, var(--grist-color-dark));
+    }
+    .group.even, .group.veven {
+            background-color: rgba(0,0,0,0.1);
+            border-color: var(--grist-theme-page-panels-border, var(--grist-color-medium-grey));
+        }
+
+    .group.odd {
+        background-color: inherit;
+    }
+
+    .axis-text {
+        fill: var(--grist-theme-text, var(--grist-color-dark));
+    }
+    .axis-line-5 {
+        stroke: #555
+    }
+    .axis-line-10 {
+        stroke: #999
+    }
+    .axis-line-20 {
+        stroke: #CCC
+    }
+
+}
+"""
+
+
 styles =
     """
 
 body {
     margin: 0;
     padding: 0;
-    background-color: white;
     overflow: hidden;
     color: black;
 }

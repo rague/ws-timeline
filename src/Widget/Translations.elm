@@ -8,9 +8,19 @@ hours translations =
     I18Next.tf translations "Hours"
 
 
+auto : List I18Next.Translations -> String
+auto translations =
+    I18Next.tf translations "auto"
+
+
 color : List I18Next.Translations -> String
 color translations =
     I18Next.tf translations "color"
+
+
+colorScheme : List I18Next.Translations -> String
+colorScheme translations =
+    I18Next.tf translations "colorScheme"
 
 
 comment : List I18Next.Translations -> String
@@ -41,6 +51,11 @@ create translations =
 cumulativeDuration : List I18Next.Translations -> String
 cumulativeDuration translations =
     I18Next.tf translations "cumulativeDuration"
+
+
+dark : List I18Next.Translations -> String
+dark translations =
+    I18Next.tf translations "dark"
 
 
 daysShort : List I18Next.Translations -> String
@@ -91,6 +106,11 @@ hoursShort translations =
 isLocked : List I18Next.Translations -> String
 isLocked translations =
     I18Next.tf translations "isLocked"
+
+
+light : List I18Next.Translations -> String
+light translations =
+    I18Next.tf translations "light"
 
 
 minutes : List I18Next.Translations -> String
