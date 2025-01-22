@@ -331,7 +331,7 @@ view model =
                             "border-top"
 
                          else
-                            "border-top"
+                            "border-left"
                         )
                         "1px solid #CCC"
                         :: cssDisplay
@@ -2816,13 +2816,13 @@ body {
         fill: var(--grist-theme-text, var(--grist-color-dark));
     }
     .axis-line-5 {
-        stroke: #555
+        stroke: #404040;
     }
     .axis-line-10 {
-        stroke: #999
+        stroke: #666;
     }
     .axis-line-20 {
-        stroke: #CCC
+        stroke: #999;
     }
 
 }
