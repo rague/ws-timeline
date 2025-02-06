@@ -1,4 +1,4 @@
-module Moment exposing (Duration, Moment(..), add, addDuration, addDurationToPosix, between, durationBetween, durationIsZero, durationNotZero, format, fromDuration, greaterThan, intersect, lessOrEqualThan, lessThan, mapDuration, maxPosix, minPosix, startOf, subtractDuration, toDuration)
+module Moment exposing (Duration, Moment(..), add, addDuration, addDurationToPosix, between, durationBetween, durationIsZero, durationNotZero, format, formatI18n, fromDuration, greaterThan, intersect, lessOrEqualThan, lessThan, mapDuration, maxPosix, minPosix, startOf, subtractDuration, toDuration)
 
 import Cldr.Format.Date as FDate
 import Cldr.Format.DateTime as FDateTime

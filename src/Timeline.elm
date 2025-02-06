@@ -2,6 +2,8 @@ module Timeline exposing (Msg(..), applyAction, calcLayersSize, canEditGroups, c
 
 import Browser.Dom
 import Browser.Events
+import Cldr.Format.DateTime as FDateTime
+import Cldr.Format.Length as FLength
 import Cldr.Locale exposing (Locale)
 import Color
 import Dict exposing (Dict)
@@ -566,33 +568,45 @@ view attrs box rect =
                         )
                   )
 
-        -- mbcursor = (Maybe.map (\time -> (Moment.durationBetween box.first time |> Moment.fromDuration |> toFloat) * box.zoom / duration.day)
-        --             (box.cursorTime))
         mbcursor =
-            case box.direction of
-                Horizontal ->
-                    case box.interaction of
-                        MouseOver ( time, _ ) ->
-                            ((time |> snapToGridForZoom box.zoom box.zone |> Time.posixToMillis |> toFloat) - from)
-                                * toFloat width
-                                / (end - from)
-                                |> round
-                                |> Just
+            (case box.interaction of
+                MouseOver ( time, _ ) ->
+                    Just time
 
-                        _ ->
-                            Nothing
+                Draw _ time _ ->
+                    Just time
 
-                Vertical ->
-                    case box.interaction of
-                        MouseOver ( time, _ ) ->
-                            ((time |> snapToGridForZoom box.zoom box.zone |> Time.posixToMillis |> toFloat) - from)
-                                * toFloat height
-                                / (end - from)
-                                |> round
-                                |> Just
+                -- = MouseOver Position
+                -- | Select SelectAction Position Selection ( Position, ( Duration, Float ) )
+                -- | Move MoveType SectionBox Position ( Duration, Int )
+                -- | ResizeRight Position Duration
+                -- | ResizeLeft Position Duration
+                -- | Draw Posix Posix Int
+                -- | EditGroupLabel GroupId String
+                _ ->
+                    Nothing
+            )
+                |> Maybe.map
+                    (\time ->
+                        let
+                            snapped =
+                                time |> snapToGridForZoom box.zoom box.zone
+                        in
+                        case box.direction of
+                            Horizontal ->
+                                ((snapped |> Time.posixToMillis |> toFloat) - from)
+                                    * toFloat width
+                                    / (end - from)
+                                    |> round
+                                    |> Tuple.pair snapped
 
-                        _ ->
-                            Nothing
+                            Vertical ->
+                                ((snapped |> Time.posixToMillis |> toFloat) - from)
+                                    * toFloat height
+                                    / (end - from)
+                                    |> round
+                                    |> Tuple.pair snapped
+                    )
 
         currentTime =
             case box.direction of
@@ -700,20 +714,43 @@ view attrs box rect =
                     [ Html.Lazy.lazy3 drawColsBackground box.groups box.lineSize box.selection ]
                 ]
         , case ( box.interaction, mbcursor, box.standby ) of
-            ( MouseOver _, Just pos, False ) ->
+            ( MouseOver _, Just ( posix, pos ), False ) ->
+                let
+                    date =
+                        Moment.formatI18n box.locale box.zone "yyyy-MM-dd " posix
+
+                    time =
+                        FDateTime.format
+                            (FDateTime.TimeOnly FLength.Short)
+                            box.locale
+                            box.zone
+                            posix
+                in
                 case box.direction of
                     Horizontal ->
                         Html.div
                             [ HA.style "position" "absolute"
                             , HA.style "left" (String.fromInt (pos + lateral) ++ "px")
                             , HA.style "top" (String.fromInt (top + 5) ++ "px")
-                            , HA.style "width" "0"
+
+                            -- , HA.style "width" "0"
                             , HA.style "height" (String.fromInt height ++ "px")
                             , HA.style "border-left" "1px solid rgba(100,0,255,0.5)"
                             , HA.style "z-index" "1"
                             , HA.style "pointer-events" "none"
                             ]
-                            []
+                            [ Html.div
+                                [ HA.style "font-size" "12px"
+                                , HA.style "text-wrap" "nowrap"
+                                , HA.style "line-height" "1.5"
+                                , HA.style "background-color" "steelblue"
+                                , HA.style "color" "white"
+                                , HA.style "padding" "3px"
+                                ]
+                                [ Html.div [] [ Html.text date ]
+                                , Html.div [] [ Html.text time ]
+                                ]
+                            ]
 
                     Vertical ->
                         Html.div
