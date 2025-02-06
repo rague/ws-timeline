@@ -595,10 +595,18 @@ view attrs box rect =
                             Nothing
 
         currentTime =
-            ((box.currentPosix |> Time.posixToMillis |> toFloat) - from)
-                * toFloat width
-                / (end - from)
-                |> round
+            case box.direction of
+                Horizontal ->
+                    ((box.currentPosix |> Time.posixToMillis |> toFloat) - from)
+                        * toFloat width
+                        / (end - from)
+                        |> round
+
+                Vertical ->
+                    ((box.currentPosix |> Time.posixToMillis |> toFloat) - from)
+                        * toFloat height
+                        / (end - from)
+                        |> round
     in
     Html.div
         ([ HA.style "width" (String.fromInt rect.width ++ "px")
@@ -759,18 +767,29 @@ view attrs box rect =
                 ]
                 [ sectionsView box box.sections (width - axisSize) height from end ]
         , if Moment.between box.currentPosix (Time.millisToPosix (round from)) (Time.millisToPosix (round end)) then
-            Html.div
-                [ HA.style "position" "absolute"
-                , HA.style "left" (String.fromInt (currentTime + lateral) ++ "px")
-                , HA.style "top" (String.fromInt (top + 5) ++ "px")
-                , HA.style "width" "0"
-                , HA.style "height" (String.fromInt height ++ "px")
-                , HA.style "border-left" "2px solid rgba(255,100,0,0.7)"
+            if box.direction == Horizontal then
+                Html.div
+                    [ HA.style "position" "absolute"
+                    , HA.style "left" (String.fromInt (currentTime + lateral) ++ "px")
+                    , HA.style "top" (String.fromInt (top + 5) ++ "px")
+                    , HA.style "width" "0"
+                    , HA.style "height" (String.fromInt height ++ "px")
+                    , HA.style "border-left" "2px solid rgba(255,100,0,0.7)"
+                    , HA.style "pointer-events" "none"
+                    ]
+                    []
 
-                -- , HA.style "z-index" "1"
-                , HA.style "pointer-events" "none"
-                ]
-                []
+            else
+                Html.div
+                    [ HA.style "position" "absolute"
+                    , HA.style "left" (String.fromInt (lateral + 5) ++ "px")
+                    , HA.style "top" (String.fromInt (currentTime + top) ++ "px")
+                    , HA.style "height" "0"
+                    , HA.style "width" (String.fromInt width ++ "px")
+                    , HA.style "border-top" "2px solid rgba(255,100,0,0.7)"
+                    , HA.style "pointer-events" "none"
+                    ]
+                    []
 
           else
             Html.text ""
