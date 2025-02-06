@@ -2625,6 +2625,16 @@ colorSchemeDecoder =
             )
 
 
+encodeColorScheme : ColorScheme -> Value
+encodeColorScheme cs =
+    case cs of
+        Light ->
+            Encode.string "light"
+
+        Dark ->
+            Encode.string "dark"
+
+
 receiveDecoder : Decoder ReceiveData
 receiveDecoder =
     Decode.succeed ReceiveData
@@ -2714,6 +2724,7 @@ encodeOptions options =
         , ( "durationUnit", encodeDurationUnit options.durationUnit )
         , ( "displaySubtotals", Encode.bool options.displaySubtotals )
         , ( "countMoments", Encode.bool options.countMoments )
+        , ( "colorScheme", Maybe.map encodeColorScheme options.colorScheme |> Maybe.withDefault Encode.null )
         ]
 
 
@@ -2788,11 +2799,11 @@ numericOrBoolDecoder =
 darkStyle =
     """
 body {
-    background-color: var(--grist-theme-menu-bg, white);
+    background-color: rgb(50, 50, 63);
 }  
 .controls button {
         background-color: #555;
-        color: var(--grist-theme-text, var(--grist-color-dark));
+        color: #efefef;
 
         &:hover {
             background-color: #777;
@@ -2801,11 +2812,11 @@ body {
 
 .timeline {
     .group {
-        color: var(--grist-theme-text, var(--grist-color-dark));
+        color: #efefef;
     }
     .group.even, .group.veven {
             background-color: rgba(0,0,0,0.1);
-            border-color: var(--grist-theme-page-panels-border, var(--grist-color-medium-grey));
+            border-color: rgb(60, 60, 75);
         }
 
     .group.odd {
@@ -2813,7 +2824,7 @@ body {
     }
 
     .axis-text {
-        fill: var(--grist-theme-text, var(--grist-color-dark));
+        fill: #efefef;
     }
     .axis-line-5 {
         stroke: #404040;
