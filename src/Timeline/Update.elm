@@ -575,7 +575,11 @@ sectionsUp box { x, y } =
             in
             ( { box | interaction = mouseOverInteraction box x y }
             , if create then
-                CreateSection maybeGId start end
+                if Moment.lessThan start end then
+                    CreateSection maybeGId start end
+
+                else
+                    CreateSection maybeGId end start
 
               else
                 NoAction
