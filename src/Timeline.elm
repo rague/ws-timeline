@@ -782,7 +782,7 @@ view attrs box rect =
                                 , HA.style "box-sizing" "border-box"
                                 , HA.style "color" "white"
                                 , HA.style "padding" "3px"
-                                , HA.style "width" (String.fromInt (axisSize - 35) ++ "px")
+                                , HA.style "width" "75px"
                                 ]
                                 [ Html.div [] [ Html.text date ]
                                 , Html.div [] [ Html.text time ]
