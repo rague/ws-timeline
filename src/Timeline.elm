@@ -568,30 +568,40 @@ view attrs box rect =
                         )
                   )
 
+        grid =
+            Axis.getGrid (duration.day / box.zoom)
+
+        unit =
+            grid.snap * 3600000 |> round
+
         mbcursor =
             (case box.interaction of
                 MouseOver ( time, _ ) ->
-                    Just time
+                    time |> snapToGridForZoom box.zoom box.zone |> Just
 
                 Draw _ time _ ->
                     Just time
 
-                -- = MouseOver Position
-                -- | Select SelectAction Position Selection ( Position, ( Duration, Float ) )
-                -- | Move MoveType SectionBox Position ( Duration, Int )
-                -- | ResizeRight Position Duration
-                -- | ResizeLeft Position Duration
-                -- | Draw Posix Posix Int
-                -- | EditGroupLabel GroupId String
+                Move _ sbox _ ( dur, _ ) ->
+                    Moment.addDurationToPosix sbox.section.start dur
+                        |> snapToGridForZoom box.zoom box.zone
+                        |> Just
+
+                ResizeLeft ( time, _ ) dur ->
+                    Moment.addDurationToPosix time (Moment.mapDuration (\d -> (toFloat d / toFloat unit |> round) * unit) dur)
+                        |> snapToGridForZoom box.zoom box.zone
+                        |> Just
+
+                ResizeRight ( time, _ ) dur ->
+                    Moment.addDurationToPosix time (Moment.mapDuration (\d -> (toFloat d / toFloat unit |> round) * unit) dur)
+                        |> snapToGridForZoom box.zoom box.zone
+                        |> Just
+
                 _ ->
                     Nothing
             )
                 |> Maybe.map
-                    (\time ->
-                        let
-                            snapped =
-                                time |> snapToGridForZoom box.zoom box.zone
-                        in
+                    (\snapped ->
                         case box.direction of
                             Horizontal ->
                                 ((snapped |> Time.posixToMillis |> toFloat) - from)
@@ -713,8 +723,8 @@ view attrs box rect =
                     ]
                     [ Html.Lazy.lazy3 drawColsBackground box.groups box.lineSize box.selection ]
                 ]
-        , case ( box.interaction, mbcursor, box.standby ) of
-            ( MouseOver _, Just ( posix, pos ), False ) ->
+        , case ( mbcursor, box.standby ) of
+            ( Just ( posix, pos ), False ) ->
                 let
                     date =
                         Moment.formatI18n box.locale box.zone "yyyy-MM-dd " posix
@@ -731,21 +741,22 @@ view attrs box rect =
                         Html.div
                             [ HA.style "position" "absolute"
                             , HA.style "left" (String.fromInt (pos + lateral) ++ "px")
-                            , HA.style "top" (String.fromInt (top + 5) ++ "px")
+                            , HA.style "top" (String.fromInt top ++ "px")
 
                             -- , HA.style "width" "0"
                             , HA.style "height" (String.fromInt height ++ "px")
-                            , HA.style "border-left" "1px solid rgba(100,0,255,0.5)"
+                            , HA.style "border-left" "1px solid steelblue"
                             , HA.style "z-index" "1"
                             , HA.style "pointer-events" "none"
                             ]
                             [ Html.div
                                 [ HA.style "font-size" "12px"
                                 , HA.style "text-wrap" "nowrap"
-                                , HA.style "line-height" "1.5"
+                                , HA.style "line-height" "1.2"
                                 , HA.style "background-color" "steelblue"
                                 , HA.style "color" "white"
                                 , HA.style "padding" "3px"
+                                , HA.style "position" "relative"
                                 ]
                                 [ Html.div [] [ Html.text date ]
                                 , Html.div [] [ Html.text time ]
@@ -759,11 +770,24 @@ view attrs box rect =
                             , HA.style "top" (String.fromInt (top + pos) ++ "px")
                             , HA.style "width" (String.fromInt width ++ "px")
                             , HA.style "height" "0"
-                            , HA.style "border-top" "1px solid rgba(100,0,255,0.5)"
+                            , HA.style "border-top" "1px solid steelblue"
                             , HA.style "z-index" "1"
                             , HA.style "pointer-events" "none"
                             ]
-                            []
+                            [ Html.div
+                                [ HA.style "font-size" "12px"
+                                , HA.style "text-wrap" "nowrap"
+                                , HA.style "line-height" "1.5"
+                                , HA.style "background-color" "steelblue"
+                                , HA.style "box-sizing" "border-box"
+                                , HA.style "color" "white"
+                                , HA.style "padding" "3px"
+                                , HA.style "width" (String.fromInt (axisSize - 35) ++ "px")
+                                ]
+                                [ Html.div [] [ Html.text date ]
+                                , Html.div [] [ Html.text time ]
+                                ]
+                            ]
 
             _ ->
                 Html.text ""
