@@ -571,7 +571,7 @@ sectionsUp box { x, y } =
                             not g.isSubtotal
 
                         _ ->
-                            False
+                            True
             in
             ( { box | interaction = mouseOverInteraction box x y }
             , if create then

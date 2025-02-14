@@ -217,6 +217,7 @@ window.addEventListener('load', async (event) => {
 
   app.ports.createRecord.subscribe(async rec => {
     try {
+      console.log("WS: createRecord", rec);
       const colTypes = await colTypesFetcher.getColTypes();
       const isFormula = await colTypesFetcher.getColIsFormula();
 
