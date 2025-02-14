@@ -6,6 +6,7 @@
     "subgroupBy": "Puis grouper par",
     "color": "Couleur",
     "isLocked": "Est verrouillé",
+    "isGlobal": "Est global",
     "comment": "Commentaire",
     "content": "contenu",
     "editableColumns": "colonnes éditables",

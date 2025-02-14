@@ -22,7 +22,7 @@ findSection posix ( line, size ) sections =
     Extra.find
         (\({ section } as sbox) ->
             Moment.between posix section.start section.end
-                && between line (toFloat sbox.line) (toFloat sbox.line + size)
+                && (section.isGlobal || between line (toFloat sbox.line) (toFloat sbox.line + size))
         )
         sections
 
@@ -62,19 +62,14 @@ intersect a1 a2 b1 b2 =
 
 findSectionsIds : Position -> Position -> List GroupBox -> Selection
 findSectionsIds ( fromH, fromV ) ( toH, toV ) groups =
-    List.filter
-        (\gbox ->
-            intersect (toFloat gbox.position) (toFloat (gbox.position + gbox.size)) fromV toV
-         -- fromV <= toFloat gbox.position && toV >= toFloat gbox.position
-        )
-        groups
+    groups
         |> List.foldl
             (\gbox selset ->
                 List.foldl
                     (\({ section } as sbox) set ->
                         if
                             Moment.intersect section.start section.end fromH toH
-                                && intersect (toFloat (sbox.line + gbox.position)) (toFloat (sbox.line + gbox.position) + 1) fromV toV
+                                && (section.isGlobal || intersect (toFloat (sbox.line + gbox.position)) (toFloat (sbox.line + gbox.position) + 1) fromV toV)
                                 && not gbox.isSubtotal
                         then
                             addToSelection gbox.id [ section.id ] set

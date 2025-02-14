@@ -508,6 +508,15 @@ window.addEventListener('load', async (event) => {
       },
 
       {
+        name: "isGlobal",
+        title: t("isGlobal"),
+        optional: true,
+        type: "Bool",
+        strictType: true
+
+      },
+
+      {
         name: "commentaire",
         title: t("comment"),
         optional: true,

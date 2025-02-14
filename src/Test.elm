@@ -122,8 +122,8 @@ duration =
     { day = 24 * 60 * 60 * 1000 }
 
 
-makeDefSec : { id : String, start : Float, end : Float, color : String } -> Section
-makeDefSec { id, start, end, color } =
+makeDefSec : { id : String, start : Float, end : Float, color : String, isGlobal : Bool } -> Section
+makeDefSec { id, start, end, color, isGlobal } =
     { start = start * duration.day + 1633478400000 |> round |> Time.millisToPosix
     , end = end * duration.day + 1633478400000 |> round |> Time.millisToPosix
     , id = id
@@ -136,6 +136,7 @@ makeDefSec { id, start, end, color } =
 
         else
             False
+    , isGlobal = isGlobal
     }
 
 
@@ -182,6 +183,7 @@ groupsData =
                                         (modBy 29 i)
                                         colors
                                         |> Maybe.withDefault ""
+                                , isGlobal = i == 2 && j == 3
                                 }
                         )
                         (List.range 0 (cols - 1))

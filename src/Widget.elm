@@ -1797,6 +1797,7 @@ receiveData data model =
                                                 , isLocked = rec.isLocked
                                                 , labels = rec.contenu
                                                 , hasComment = rec.comment /= Nothing
+                                                , isGlobal = rec.isGlobal
                                                 }
                                             )
                                         |> List.sortBy (.start >> Time.posixToMillis)
@@ -2063,6 +2064,7 @@ computeTotal toValue toString sections =
                                 , isLocked = False
                                 , labels = [ toString total ]
                                 , hasComment = False
+                                , isGlobal = False
                                 }
                                     :: ls
 
@@ -2527,6 +2529,7 @@ type alias Record =
     , totals : List Float
     , couleur : String
     , isLocked : Bool
+    , isGlobal : Bool
     , comment : Maybe String
     }
 
@@ -2669,6 +2672,7 @@ recordDecoder =
         |> optional "totals" (Decode.list numericOrBoolDecoder) []
         |> required "couleur" (Decode.oneOf [ Decode.maybe Decode.string, Decode.nullable Decode.string ] |> Decode.map (Maybe.withDefault ""))
         |> optional "isLocked" Decode.bool False
+        |> optional "isGlobal" Decode.bool False
         |> optional "commentaire"
             (Decode.string
                 |> Decode.map

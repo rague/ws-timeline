@@ -6,6 +6,7 @@
     "subgroupBy": "Then group by",
     "color": "Color",
     "isLocked": "Is locked",
+    "isGlobal": "Is global",
     "comment": "Comment",
     "content": "content",
     "editableColumns": "editable columns",

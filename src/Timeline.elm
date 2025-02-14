@@ -4,7 +4,7 @@ import Browser.Dom
 import Browser.Events
 import Cldr.Format.DateTime as FDateTime
 import Cldr.Format.Length as FLength
-import Cldr.Locale exposing (Locale)
+import Cldr.Locale exposing (Locale, th)
 import Color
 import Dict exposing (Dict)
 import DnDList
@@ -363,8 +363,12 @@ toTimelineBox groups base =
     let
         foldfunc group res =
             let
+                ( globalSections, normalSections ) =
+                    List.partition .isGlobal group.sections
+
+                -- ( [], group.sections )
                 layers =
-                    toLayers group.sections
+                    toLayers normalSections
 
                 size =
                     calcLayersSize layers
@@ -382,15 +386,23 @@ toTimelineBox groups base =
                        , isSubtotal = group.isSubtotal
                        , sections =
                             List.map
-                                (\( s, level ) ->
+                                (\s ->
                                     { groupId = group.id
                                     , section = s
-                                    , line = level
+                                    , line = 1
                                     }
                                 )
-                                layers
+                                globalSections
+                                ++ List.map
+                                    (\( s, level ) ->
+                                        { groupId = group.id
+                                        , section = s
+                                        , line = level
+                                        }
+                                    )
+                                    layers
                        }
-                     , layers
+                     , List.map (\s -> ( s, 0 )) globalSections ++ layers
                      )
                    ]
 
@@ -1209,6 +1221,7 @@ type alias SectionView a =
             , isLocked : Bool
             , labels : List String
             , hasComment : Bool
+            , isGlobal : Bool
             , id : String
         }
     , line : Int
@@ -1293,7 +1306,7 @@ sectionsView ({ direction } as box) sections width height fromTime endTime =
                 _ ->
                     ( Moment.toDuration 0, 0, Moment.toDuration 0 )
 
-        ( selectSections, unselectSections ) =
+        ( globalSections, ( selectSections, unselectSections ) ) =
             sections
                 |> List.map
                     (\{ section, groupId, line } ->
@@ -1359,18 +1372,28 @@ sectionsView ({ direction } as box) sections width height fromTime endTime =
                     (\({ section } as sbox) ->
                         if
                             Moment.intersect section.start section.end (Time.millisToPosix <| round fromTime) (Time.millisToPosix <| round endTime)
-                                && (sbox.line >= firstLine)
-                                && (sbox.line <= lastLine)
+                                && ((sbox.line >= firstLine)
+                                        && (sbox.line <= lastLine)
+                                        || sbox.section.isGlobal
+                                   )
                         then
                             let
                                 pos =
                                     ( (Moment.durationBetween box.first section.start |> Moment.fromDuration |> toFloat) * box.zoom / duration.day
-                                    , toFloat sbox.line * box.lineSize + 2
+                                    , if sbox.section.isGlobal then
+                                        0
+
+                                      else
+                                        toFloat sbox.line * box.lineSize + 2
                                     )
 
                                 size =
                                     ( (Moment.durationBetween section.start section.end |> Moment.fromDuration |> toFloat) * box.zoom / duration.day
-                                    , box.lineSize - 4
+                                    , if sbox.section.isGlobal then
+                                        toFloat box.lines * box.lineSize
+
+                                      else
+                                        box.lineSize - 4
                                     )
                             in
                             if getter.h size < 12 || getter.v size < 14 then
@@ -1391,9 +1414,9 @@ sectionsView ({ direction } as box) sections width height fromTime endTime =
                         else
                             Nothing
                     )
-                |> (\filtered ->
-                        List.partition .selected filtered
-                   )
+                -- |> List.partition (always False)
+                |> List.partition (.section >> .isGlobal)
+                |> Tuple.mapSecond (List.partition .selected)
 
         ( mbselection, mbdraw ) =
             case box.interaction of
@@ -1569,6 +1592,29 @@ sectionsView ({ direction } as box) sections width height fromTime endTime =
         [ Html.div
             [ HA.style "width" (String.fromInt width ++ "px")
             , HA.style "height" (String.fromInt height ++ "px")
+            , HA.style "left" "0"
+            , HA.style "top" "0"
+            , HA.style "position" "absolute"
+            ]
+            [ drawHtmlSections
+                direction
+                box.locale
+                box.zone
+                width
+                height
+                scrollX
+                scrollY
+                globalSections
+                Nothing
+                Nothing
+                box.wrapText
+            ]
+        , Html.div
+            [ HA.style "width" (String.fromInt width ++ "px")
+            , HA.style "height" (String.fromInt height ++ "px")
+            , HA.style "left" "0"
+            , HA.style "top" "0"
+            , HA.style "position" "absolute"
             ]
             [ drawAllGlSections direction
                 width
@@ -1744,6 +1790,7 @@ drawHtmlSections direction locale zone _ _ scrollX scrollY allSections mbselecti
                                             []
                                 , isLocked = False
                                 , comment = Nothing
+                                , isGlobal = False
                                 }
                                 True
                         )
@@ -1767,10 +1814,11 @@ sectionBox2html :
             , end : Posix
             , color : String
             , labels : List String
+            , isGlobal : Bool
         }
     -> Bool
     -> Html msg
-sectionBox2html ( locale, zone ) direction ( positionh, positionv ) ( sizeh, sizev ) isSelected wrapText { color, labels, start, end } drawTime =
+sectionBox2html ( locale, zone ) direction ( positionh, positionv ) ( sizeh, sizev ) isSelected wrapText { color, labels, start, end, isGlobal } drawTime =
     let
         posx =
             positionh
@@ -1841,6 +1889,20 @@ sectionBox2html ( locale, zone ) direction ( positionh, positionv ) ( sizeh, siz
         , HA.style "color" cssColor
         , if color == "new" then
             HA.class color
+
+          else
+            HA.class ""
+        , if isGlobal then
+            (if isSelected then
+                Color.toRgba color_
+                    |> (\{ red, green, blue, alpha } -> { red = red * 0.4 * alpha, green = green * 0.4 * alpha, blue = blue * 0.4 * alpha, alpha = 1 })
+                    |> Color.fromRgba
+                    |> Color.toCssString
+
+             else
+                Color.toCssString color_
+            )
+                |> HA.style "background-color"
 
           else
             HA.class ""
