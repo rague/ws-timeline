@@ -6,6 +6,8 @@ function sanitize(s) {
   return s.replace(/[^a-z0-9]/gi, '_');
 }
 
+var pdfurl;
+
 /*
   document vectoriel
   - imprimable via export pdf
@@ -127,6 +129,7 @@ function generatePDF(pages, t) {
     url = stream.toBlobURL('application/pdf');
     const iframe = document.getElementById("iframe");
     iframe.src = url;
+    pdfurl = url;
   });
 
 }

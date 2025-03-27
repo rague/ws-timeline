@@ -2,6 +2,29 @@ const secondsPerDay = 24 * 60 * 60;
 const t = i18next.t;
 
 var app;
+var previewed = false;
+var iframeWidth = document.getElementById("iframe").style.width;
+
+
+function preview() {
+
+
+    if (previewed) {
+        document.getElementById("preview").style.display = "none"
+        document.getElementById("iframe").style.display = "";
+        document.getElementById("panel").style.display = "grid";
+        previewed = false;
+
+    } else {
+        document.getElementById("preview").src = pdfurl;
+        document.getElementById("preview").style.display = ""
+        document.getElementById("iframe").style.display = "none"
+        document.getElementById("panel").style.display = "none";
+        previewed = true;
+    }
+
+}
+
 
 function getLanguage() {
     if (this._lang) {
