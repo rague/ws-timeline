@@ -130,6 +130,7 @@ function generatePDF(pages, t) {
     const iframe = document.getElementById("iframe");
     iframe.src = url;
     pdfurl = url;
+    if (previewed) document.getElementById("preview").src = pdfurl;
   });
 
 }

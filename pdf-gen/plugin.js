@@ -10,12 +10,14 @@ function preview() {
 
 
     if (previewed) {
+        document.getElementById("preview-button").textContent = "Preview"
         document.getElementById("preview").style.display = "none"
         document.getElementById("iframe").style.display = "";
         document.getElementById("panel").style.display = "grid";
         previewed = false;
 
     } else {
+        document.getElementById("preview-button").textContent = "Settings"
         document.getElementById("preview").src = pdfurl;
         document.getElementById("preview").style.display = ""
         document.getElementById("iframe").style.display = "none"
