@@ -13,8 +13,8 @@ function getLanguage() {
     return this._lang;
   } else {
     const urlParams = new URLSearchParams(window.location.search);
-    // this._lang = (urlParams.get('language') ?? navigator.language ?? 'en');
-    this._lang = navigator.language;
+    this._lang = (urlParams.get('culture') ?? navigator.language ?? 'en');
+    //this._lang = navigator.language;
     console.log("WS: getLanguage() =>", this._lang);
     return this._lang;
   }

@@ -43,11 +43,11 @@ type FieldType
 
 
 standardFloat =
-    Float { format = Standard, numSign = Minus, wrap = False, align = Right, decimals = Nothing, maxDecimals = Nothing }
+    Float { format = Standard, numSign = Minus, wrap = False, align = Right, decimals = 0, maxDecimals = 10 }
 
 
 standardInt =
-    Int { format = Standard, numSign = Minus, wrap = False, align = Right, decimals = Nothing, maxDecimals = Nothing }
+    Int { format = Standard, numSign = Minus, wrap = False, align = Right, decimals = 0, maxDecimals = 0 }
 
 
 type Values
@@ -61,8 +61,8 @@ type alias NumberFormat =
     , numSign : NumSign
     , wrap : Bool
     , align : Align
-    , decimals : Maybe Int
-    , maxDecimals : Maybe Int
+    , decimals : Int
+    , maxDecimals : Int
     }
 
 
@@ -339,8 +339,8 @@ numberFormatDecoder =
         (Decode.oneOf [ Decode.field "numSign" numSignDecoder, Decode.succeed Minus ])
         (Decode.oneOf [ Decode.field "wrap" Decode.bool, Decode.succeed False ])
         (Decode.oneOf [ Decode.field "alignment" alignDecoder, Decode.succeed Right ])
-        (Decode.maybe (Decode.field "decimals" Decode.int))
-        (Decode.maybe (Decode.field "maxDecimals" Decode.int))
+        (Decode.oneOf [ Decode.field "decimals" Decode.int, Decode.succeed 0 ])
+        (Decode.oneOf [ Decode.field "maxDecimals" Decode.int, Decode.succeed 10 ])
 
 
 numberModeDecoder : Decoder NumberMode
@@ -464,27 +464,15 @@ floatToString locale defaultCurrency format float =
             else
                 float
 
+        pow =
+            10 ^ toFloat format.maxDecimals
+
         float_ =
-            Maybe.map
-                (\d ->
-                    let
-                        pow =
-                            10 ^ toFloat d
-                    in
-                    (fper * pow |> round |> toFloat) / pow
-                )
-                format.maxDecimals
-                |> Maybe.withDefault fper
+            (fper * pow |> round |> toFloat) / pow
     in
     FNum.format
         { locale
-            | decimals =
-                case format.decimals of
-                    Just d ->
-                        FNL.Min d
-
-                    Nothing ->
-                        locale.decimals
+            | decimals = FNL.Min format.decimals
             , negativePrefix =
                 if format.numSign == Parens then
                     "("
