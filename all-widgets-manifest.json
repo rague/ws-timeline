@@ -9,8 +9,8 @@
     "description": "Timeline avec une table de tâches configurée avec une colonne date et heure de début et une colonne date et heure de fin.",
     "authors": [
       {
-        "name": "Grist Labs",
-        "url": "https://github.com/gristlabs"
+        "name": "Raphaël Guénot",
+        "url": "https://rague.github.io"
       }
     ],
     "isGristLabsMaintained": false,
@@ -26,8 +26,8 @@
     "description": "Timeline avec une table de tâches configurée avec une colonne date et heure de début et une colonne numérique de durée en minutes.",
     "authors": [
       {
-        "name": "Grist Labs",
-        "url": "https://github.com/gristlabs"
+        "name": "Raphaël Guénot",
+        "url": "https://rague.github.io"
       }
     ],
     "isGristLabsMaintained": false,
@@ -43,8 +43,8 @@
     "description": "Timeline avec une table de tâches configurée avec une colonne date et heure de début et une colonne numérique de durée en heures.",
     "authors": [
       {
-        "name": "Grist Labs",
-        "url": "https://github.com/gristlabs"
+        "name": "Raphaël Guénot",
+        "url": "https://rague.github.io"
       }
     ],
     "isGristLabsMaintained": false,
@@ -60,8 +60,8 @@
     "description": "Génération de timeline en fichier PDF.",
     "authors": [
       {
-        "name": "Grist Labs",
-        "url": "https://github.com/gristlabs"
+        "name": "Raphaël Guénot",
+        "url": "https://rague.github.io"
       }
     ],
     "isGristLabsMaintained": false,
