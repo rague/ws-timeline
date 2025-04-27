@@ -18,8 +18,8 @@
   },
   {
     "name": "Timeline début et minutes",
-    "url": "https://rague.github.io/ws-timeline/start-duration-min",
-    "widgetId": "@rague/ws-timeline#start-duration-min",
+    "url": "https://rague.github.io/ws-timeline/start-duration-mn",
+    "widgetId": "@rague/ws-timeline#start-duration-mn",
     "published": true,
     "accessLevel": "full",
     "renderAfterReady": true,
