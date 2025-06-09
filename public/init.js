@@ -7,6 +7,10 @@ const t = i18next.t;
 
 console.log("WS: Base URI", document.baseURI);
 
+function isDate(obj) {
+  return obj instanceof Date && !isNaN(obj);
+}
+
 
 function getLanguage() {
   if (this._lang) {
@@ -587,7 +591,13 @@ window.addEventListener('load', async (event) => {
       let oneid;
       rawtable = await grist.selectedTable.getTableId().then(id => grist.docApi.fetchTable(id));
 
-      const data = mappedRecords.map(rec => {
+      const data = mappedRecords.filter(rec => {
+        if (paramEndDate) {
+          return isDate(rec.date) && isDate(rec.fin);
+        } else {
+          return isDate(rec.date) && (rec.duree > 0);
+        }
+      }).map(rec => {
 
         const clone = Object.assign({}, rec)
 
