@@ -1,4 +1,4 @@
-port module Widget exposing (main)
+port module Widget exposing (main, timeZoneFromFlags)
 
 import Bounce exposing (Bounce)
 import Browser
@@ -31,6 +31,7 @@ import Svg.Attributes exposing (amplitude)
 import Task
 import Time
 import Time.Extra as TimeX
+import TimeZone
 import Timeline
 import Timeline.Action
 import Timeline.Models exposing (Direction(..), Group, Interaction(..), selectionIsEmpty)
@@ -218,12 +219,14 @@ init flags =
     in
     ( { timelineState =
             Timeline.init []
+                (timeZoneFromFlags flags)
                 (startDateFromFlags flags)
                 |> Timeline.canEditGroups False
                 |> Timeline.canSortGroups False
                 |> Timeline.setLanguage lang
       , totalState =
             Timeline.init []
+                (timeZoneFromFlags flags)
                 (startDateFromFlags flags)
                 |> Timeline.canEditGroups False
                 |> Timeline.canSortGroups False
@@ -539,6 +542,23 @@ currencyFromFlags flags =
 
         Err _ ->
             Money.EUR
+
+
+timeZoneFromFlags : Value -> Time.Zone
+timeZoneFromFlags flags =
+    let
+        result =
+            Decode.decodeValue (Decode.field "timeZone" Decode.string) flags
+    in
+    case result of
+        Ok string ->
+            (Dict.get string TimeZone.zones
+                |> Maybe.withDefault TimeZone.europe__paris
+            )
+                ()
+
+        Err _ ->
+            TimeZone.europe__paris ()
 
 
 startDateFromFlags : Value -> Time.Posix

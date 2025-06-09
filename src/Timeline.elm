@@ -128,8 +128,8 @@ generateSectionBoxes ( gbox, layers ) boxes =
             layers
 
 
-default : Posix -> TimelineBox
-default posix =
+default : Time.Zone -> Posix -> TimelineBox
+default zone posix =
     let
         dir =
             Horizontal
@@ -154,7 +154,7 @@ default posix =
     , standby = False
     , dnd = (system dir).model
     , locale = Cldr.Locale.en
-    , zone = TimeZone.europe__paris ()
+    , zone = zone
     , canSortGroups = True
     , canEditGroups = True
     , canEditSections = True
@@ -195,9 +195,9 @@ system dir =
 -- fin dnd
 
 
-init : List Group -> Posix -> TimelineBox
-init groups posix =
-    toTimelineBox groups (default posix)
+init : List Group -> Time.Zone -> Posix -> TimelineBox
+init groups zone posix =
+    toTimelineBox groups (default zone posix)
 
 
 reinit : List Group -> TimelineBox -> TimelineBox

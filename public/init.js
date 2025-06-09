@@ -25,6 +25,11 @@ function getCurrency() {
   return urlParams.get('currency') ?? 'EUR';
 }
 
+function getTimeZone() {
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get('timeZone') ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
 async function translatePage() {
 
   const backendOptions = {
@@ -62,6 +67,7 @@ window.addEventListener('load', async (event) => {
     flags: {
       language: getLanguage(),
       currency: getCurrency(),
+      timeZone: getTimeZone(),
       startDate: (new Date()).valueOf() - 86400000,
       durationUnit: timeUnit
     }

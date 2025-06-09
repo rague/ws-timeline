@@ -8,7 +8,7 @@
         "direct": {
             "Chadtech/elm-money": "7.0.0",
             "ChristophP/elm-i18next": "4.2.1",
-            "Confidenceman02/elm-select": "12.1.0",
+            "Confidenceman02/elm-select": "12.2.0",
             "NoRedInk/elm-json-decode-pipeline": "1.0.1",
             "annaghi/dnd-list": "6.0.1",
             "cuducos/elm-format-number": "9.0.1",
@@ -30,7 +30,7 @@
             "grotsev/elm-debouncer": "1.0.0",
             "justinmimbs/date": "4.1.0",
             "justinmimbs/time-extra": "1.2.0",
-            "justinmimbs/timezone-data": "11.0.0",
+            "justinmimbs/timezone-data": "11.1.0",
             "mdgriffith/elm-ui": "1.1.8",
             "phosphor-icons/phosphor-elm": "2.1.0",
             "rtfeldman/elm-css": "18.0.0"
