@@ -310,19 +310,21 @@ window.addEventListener('load', async (event) => {
                 return tables[key][tid] || tid;
             });
 
-            group.sections.push({
-                label: tlabels,
-                start: start,
-                end: end,
-                color: choicemeta ? choicemeta[rawtable[settings.color][idx]]?.fillColor || "grey" : "grey"
-            });
+            if (start && end) {
+                group.sections.push({
+                    label: tlabels,
+                    start: start,
+                    end: end,
+                    color: choicemeta ? choicemeta[rawtable[settings.color][idx]]?.fillColor || "grey" : "grey"
+                });
 
-            if (minDate === undefined || start < minDate) {
-                minDate = start;
-            }
+                if (minDate === undefined || start < minDate) {
+                    minDate = start;
+                }
 
-            if (maxDate === undefined || end > maxDate) {
-                maxDate = end;
+                if (maxDate === undefined || end > maxDate) {
+                    maxDate = end;
+                }
             }
 
 
