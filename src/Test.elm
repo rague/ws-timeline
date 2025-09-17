@@ -40,6 +40,7 @@ main =
                         Timeline.init
                             -- []
                             groupsData
+                            Time.utc
                             (Time.millisToPosix 0)
                             |> Timeline.canEditGroups False
                             |> Timeline.canSortGroups False

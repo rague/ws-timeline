@@ -49,6 +49,10 @@ totalsVertSize =
     44
 
 
+groupsSizeDefault =
+    250
+
+
 type Msg
     = TimelineMsg Timeline.Msg
     | TotalsMsg Timeline.Msg
@@ -249,7 +253,7 @@ init flags =
       , groupId = ""
       , subgroupId = Nothing
       , totalFields = []
-      , options = Options (Time.millisToPosix 0) 0 0 38 Horizontal False du False False Nothing
+      , options = Options (Time.millisToPosix 0) 0 0 38 Horizontal False du False False Nothing groupsSizeDefault
       , records = Dict.empty
       , selectStates = Dict.empty
       , focus = ""
@@ -1170,6 +1174,13 @@ update msg model =
                                      else
                                         options.lineSize
                                     )
+                                |> Timeline.changeGroupsSize
+                                    (if options.direction == Vertical then
+                                        toFloat options.groupsSize / 2 |> round
+
+                                     else
+                                        options.groupsSize
+                                    )
                                 |> Timeline.changeDirection options.direction
                                 |> Timeline.setWrapText options.wrapText
                         , totalState =
@@ -1181,6 +1192,13 @@ update msg model =
 
                                      else
                                         totalsHorizSize
+                                    )
+                                |> Timeline.changeGroupsSize
+                                    (if options.direction == Vertical then
+                                        toFloat options.groupsSize / 2 |> round
+
+                                     else
+                                        options.groupsSize
                                     )
                         , options = options
                         , durationUnit = options.durationUnit
@@ -1380,11 +1398,20 @@ update msg model =
 
                         Vertical ->
                             model.options.lineSize * 2
+
+                groupsSize =
+                    case dir of
+                        Horizontal ->
+                            model.options.groupsSize
+
+                        Vertical ->
+                            toFloat model.options.groupsSize / 2 |> round
             in
             ( { model
                 | timelineState =
                     Timeline.changeDirection dir model.timelineState
                         |> Timeline.changeLineSize size
+                        |> Timeline.changeGroupsSize groupsSize
                         |> Timeline.changeYOffset 0
                 , totalState =
                     Timeline.changeDirection dir model.totalState
@@ -1395,6 +1422,7 @@ update msg model =
                              else
                                 totalsHorizSize
                             )
+                        |> Timeline.changeGroupsSize groupsSize
                 , options = { options | direction = dir }
               }
             , Bounce.delay 500 OptionsBounceMsg
@@ -1484,7 +1512,7 @@ update msg model =
 
 
 timelineUpdate : Timeline.Msg -> Model -> ( Model, Cmd Msg )
-timelineUpdate tmsg model =
+timelineUpdate tmsg ({ options } as model) =
     let
         totalsSize =
             model.totalState.lineSize
@@ -1499,7 +1527,7 @@ timelineUpdate tmsg model =
                     )
                 |> round
 
-        box =
+        rect =
             if model.options.direction == Horizontal then
                 { width = model.box.width, height = model.box.height - totalsSize }
 
@@ -1507,7 +1535,7 @@ timelineUpdate tmsg model =
                 { width = model.box.width - totalsSize, height = model.box.height }
 
         ( state, action, tcmd ) =
-            Timeline.update tmsg model.timelineState box
+            Timeline.update tmsg model.timelineState rect
 
         groupFieldEditable =
             Dict.get model.groupId model.fields
@@ -1595,21 +1623,16 @@ timelineUpdate tmsg model =
                 Timeline.Action.ChangeZoom { start, zoom, sectionOffsetY, lineSize } ->
                     ( { model
                         | options =
-                            { start = start
-                            , zoom = zoom
-                            , sectionOffsetY = sectionOffsetY
-                            , lineSize =
-                                if state.direction == Vertical then
-                                    lineSize / 2
+                            { options
+                                | start = start
+                                , zoom = zoom
+                                , sectionOffsetY = sectionOffsetY
+                                , lineSize =
+                                    if state.direction == Vertical then
+                                        lineSize / 2
 
-                                else
-                                    lineSize
-                            , direction = model.timelineState.direction
-                            , wrapText = model.timelineState.wrapText
-                            , durationUnit = model.durationUnit
-                            , displaySubtotals = model.options.displaySubtotals
-                            , countMoments = model.options.countMoments
-                            , colorScheme = model.options.colorScheme
+                                    else
+                                        lineSize
                             }
                         , totalState = Timeline.changeStartAndZoom start zoom model.totalState
                       }
@@ -1643,7 +1666,35 @@ timelineUpdate tmsg model =
                             }
                         )
 
-                _ ->
+                Timeline.Action.ChangeGroupsSize groupsSize ->
+                    let
+                        size =
+                            if state.direction == Vertical then
+                                toFloat groupsSize * 2 |> round
+
+                            else
+                                groupsSize
+                    in
+                    ( { model
+                        | options =
+                            { options
+                                | groupsSize = size
+                            }
+                        , totalState = Timeline.changeGroupsSize groupsSize model.totalState
+                      }
+                    , Bounce.delay 500 OptionsBounceMsg
+                    )
+
+                Timeline.Action.NoAction ->
+                    ( model, Cmd.none )
+
+                Timeline.Action.ReorderGroups _ ->
+                    ( model, Cmd.none )
+
+                Timeline.Action.DeleteGroups _ ->
+                    ( model, Cmd.none )
+
+                Timeline.Action.ModifyGroupLabel _ _ ->
                     ( model, Cmd.none )
 
         updateFieldCmd =
@@ -2718,6 +2769,7 @@ type alias Options =
     , displaySubtotals : Bool
     , countMoments : Bool
     , colorScheme : Maybe ColorScheme
+    , groupsSize : Int
     }
 
 
@@ -2734,6 +2786,7 @@ optionsDecoder =
         |> optional "displaySubtotals" Decode.bool False
         |> optional "countMoments" Decode.bool False
         |> optional "colorScheme" (Decode.maybe colorSchemeDecoder) Nothing
+        |> optional "groupsSize" Decode.int groupsSizeDefault
 
 
 encodeOptions : Options -> Value
@@ -2749,6 +2802,7 @@ encodeOptions options =
         , ( "displaySubtotals", Encode.bool options.displaySubtotals )
         , ( "countMoments", Encode.bool options.countMoments )
         , ( "colorScheme", Maybe.map encodeColorScheme options.colorScheme |> Maybe.withDefault Encode.null )
+        , ( "groupsSize", Encode.int options.groupsSize )
         ]
 
 
@@ -2858,6 +2912,10 @@ body {
     }
     .axis-line-20 {
         stroke: #999;
+    }
+
+    .groups-separator {
+        border-color : #444 !important;
     }
 
 }

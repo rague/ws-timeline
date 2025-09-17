@@ -6,8 +6,10 @@ module Timeline.Event exposing
     , mouseDownEvent
     , mouseUpEvent
     , moveEvent
+    , moveX0Event
+    , moveY0Event
     , overEvent
-    , wheelEvent, moveY0Event, moveX0Event
+    , wheelEvent
     )
 
 import Html exposing (Attribute)
@@ -70,15 +72,17 @@ wheelEvent message =
 
 moveEvent : (Event -> msg) -> Attribute msg
 moveEvent message =
-    custom "mousemove" <| preventDefault (Json.map message eventDecoder)
+    on "mousemove" (Json.map message eventDecoder)
+
 
 moveY0Event : (Event -> msg) -> Attribute msg
-moveY0Event message = 
-    custom "mousemove" <| preventDefault (Json.map message (Json.map (\evt -> {evt | y = 0}) eventDecoder ))
+moveY0Event message =
+    on "mousemove" (Json.map message (Json.map (\evt -> { evt | y = 0 }) eventDecoder))
+
 
 moveX0Event : (Event -> msg) -> Attribute msg
-moveX0Event message = 
-    custom "mousemove" <| preventDefault (Json.map message (Json.map (\evt -> {evt | x = 0}) eventDecoder ))
+moveX0Event message =
+    on "mousemove" (Json.map message (Json.map (\evt -> { evt | x = 0 }) eventDecoder))
 
 
 clickEvent : (Event -> msg) -> Attribute msg
@@ -93,7 +97,7 @@ mouseDownEvent message =
 
 mouseUpEvent : (Event -> msg) -> Attribute msg
 mouseUpEvent message =
-    custom "mouseup" <| preventDefault (Json.map message eventDecoder)
+    on "mouseup" (Json.map message eventDecoder)
 
 
 overEvent : (Event -> msg) -> Attribute msg

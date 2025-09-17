@@ -1,4 +1,4 @@
-module Timeline exposing (Msg(..), applyAction, calcLayersSize, canEditGroups, canEditSections, canSortGroups, changeDirection, changeLineSize, changeStartAndZoom, changeYOffset, displayAxis, init, reinit, setLanguage, setWrapText, styles, subscriptions, update, view, zoomAllTime)
+module Timeline exposing (Msg(..), applyAction, calcLayersSize, canEditGroups, canEditSections, canSortGroups, changeDirection, changeGroupsSize, changeLineSize, changeStartAndZoom, changeYOffset, displayAxis, init, reinit, setLanguage, setWrapText, styles, subscriptions, update, view, zoomAllTime)
 
 import Browser.Dom
 import Browser.Events
@@ -13,7 +13,7 @@ import Html.Attributes as HA
 import Html.Events
 import Html.Keyed as HKeyed
 import Html.Lazy
-import Json.Decode as Decode
+import Json.Decode as Decode exposing (int)
 import List.Extra as Extra
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector2 exposing (Vec2, vec2)
@@ -44,6 +44,23 @@ subscriptions box =
 
           else
             Sub.none
+        , case box.interaction of
+            ResizeGroups _ ->
+                let
+                    field =
+                        if box.direction == Horizontal then
+                            "pageX"
+
+                        else
+                            "pageY"
+                in
+                Sub.batch
+                    [ Browser.Events.onMouseMove (Decode.field field Decode.int |> Decode.map GroupsBarResizing)
+                    , Browser.Events.onMouseUp (Decode.succeed EndGroupsBarResize)
+                    ]
+
+            _ ->
+                Sub.none
         , if box.standby == False then
             Browser.Events.onMouseUp (Decode.succeed StopInteraction)
 
@@ -161,6 +178,7 @@ default zone posix =
     , displayAxis = True
     , wrapText = False
     , currentPosix = Time.millisToPosix 0
+    , groupsSize = 250
     }
 
 
@@ -293,8 +311,8 @@ zoomAllTime width tl =
                     (last - first |> Basics.toFloat) / duration.day
             in
             { tl
-                | start = toFloat (width - groupsWidth) * 0.02
-                , zoom = toFloat (width - groupsWidth) / dur * 0.96
+                | start = toFloat (width - tl.groupsSize) * 0.02
+                , zoom = toFloat (width - tl.groupsSize) / dur * 0.96
             }
 
         _ ->
@@ -302,7 +320,7 @@ zoomAllTime width tl =
 
 
 zoomOver : Posix -> Posix -> Int -> TimelineBox -> TimelineBox
-zoomOver first last width tl =
+zoomOver first last size tl =
     let
         firstms =
             Time.posixToMillis first
@@ -314,23 +332,23 @@ zoomOver first last width tl =
             (lastms - firstms |> Basics.toFloat) / duration.day
 
         zoom =
-            toFloat (width - groupsWidth) / dur * 0.96
+            toFloat (size - tl.groupsSize) / dur * 0.96
     in
     { tl
-        | start = ((Time.posixToMillis tl.first - firstms) |> toFloat) * (zoom / duration.day) + (toFloat (width - groupsWidth) * 0.02)
+        | start = ((Time.posixToMillis tl.first - firstms) |> toFloat) * (zoom / duration.day) + (toFloat (size - tl.groupsSize) * 0.02)
         , zoom = zoom
         , interaction = MouseOver ( Time.millisToPosix -1, -1 )
     }
 
 
 showDate : Posix -> Int -> TimelineBox -> TimelineBox
-showDate first width tl =
+showDate first size tl =
     let
         firstms =
             Time.posixToMillis first
     in
     { tl
-        | start = ((Time.posixToMillis tl.first - firstms) |> toFloat) * (tl.zoom / duration.day) + (toFloat (width - groupsWidth) * 0.02)
+        | start = ((Time.posixToMillis tl.first - firstms) |> toFloat) * (tl.zoom / duration.day) + (toFloat (size - tl.groupsSize) * 0.02)
         , interaction = MouseOver ( Time.millisToPosix -1, -1 )
     }
 
@@ -356,6 +374,11 @@ changeYOffset y tl =
 changeLineSize : Float -> TimelineBox -> TimelineBox
 changeLineSize s tl =
     { tl | lineSize = s }
+
+
+changeGroupsSize : Int -> TimelineBox -> TimelineBox
+changeGroupsSize s tl =
+    { tl | groupsSize = max 40 s }
 
 
 toTimelineBox : List Group -> TimelineBox -> TimelineBox
@@ -525,17 +548,12 @@ axisAttrs =
     [ wheelEvent SectionsWheel, moveY0Event SectionsMove ]
 
 
-groupsWidth : number
-groupsWidth =
-    250
-
-
 view : List (Html.Attribute Msg) -> TimelineBox -> { width : Int, height : Int } -> Html Msg
 view attrs box rect =
     let
         lateral =
             if box.direction == Horizontal then
-                groupsWidth
+                box.groupsSize
 
             else
                 0
@@ -545,7 +563,7 @@ view attrs box rect =
                 0
 
             else
-                50
+                box.groupsSize
 
         axisSize =
             if box.displayAxis then
@@ -647,16 +665,23 @@ view attrs box rect =
     Html.div
         ([ HA.style "width" (String.fromInt rect.width ++ "px")
          , HA.style "height" (String.fromInt rect.height ++ "px")
+         , HA.style "position" "relative"
          , HA.class "timeline"
          , HA.tabindex 0
          , Html.Events.on "keyup" (Decode.map Keypress Html.Events.keyCode)
-         , mouseUpEvent SectionsUp
+         , case box.interaction of
+            ResizeGroups _ ->
+                HA.class ""
+
+            _ ->
+                mouseUpEvent SectionsUp
+         , HA.style "cursor" (mouseCursor box)
          ]
             ++ attrs
         )
         [ Html.div
             (if box.direction == Horizontal then
-                [ HA.style "position" "absolute"
+                [ HA.style "position" "relative"
                 , HA.style "width" (String.fromInt lateral ++ "px")
                 , HA.style "height" (String.fromInt (rect.height - axisSize) ++ "px")
                 , HA.style "top" (String.fromInt axisSize ++ "px")
@@ -666,7 +691,7 @@ view attrs box rect =
                 ]
 
              else
-                [ HA.style "position" "absolute"
+                [ HA.style "position" "relative"
                 , HA.style "width" (String.fromInt (rect.width - axisSize) ++ "px")
                 , HA.style "height" (String.fromInt top ++ "px")
                 , HA.style "left" (String.fromInt axisSize ++ "px")
@@ -675,16 +700,53 @@ view attrs box rect =
                 , moveY0Event SectionsMove
                 ]
             )
-            [ if box.direction == Horizontal then
-                Html.Lazy.lazy2 drawGroups
-                    box
-                    lateral
-
-              else
-                Html.Lazy.lazy2 drawGroups
-                    box
-                    top
+            [ Html.Lazy.lazy2 drawGroups
+                box
+                box.groupsSize
             ]
+        , Html.div
+            (if box.direction == Horizontal then
+                [ HA.class "groups-separator"
+                , HA.style "position" "absolute"
+                , HA.style "left" (String.fromInt (lateral - 1) ++ "px")
+                , HA.style "height" "100%"
+                , HA.style "top" "0"
+                , HA.style "width" "1px"
+                , HA.style "box-sizing" "border-box"
+                , HA.style "border-right" "1px solid #ddd"
+                ]
+
+             else
+                [ HA.class "groups-separator"
+                , HA.style "position" "absolute"
+                , HA.style "width" "100%"
+                , HA.style "top" (String.fromInt (top - 1) ++ "px")
+                , HA.style "left" "0"
+                , HA.style "height" "1px"
+                , HA.style "box-sizing" "border-box"
+                , HA.style "border-bottom" "1px solid #ddd"
+                ]
+            )
+            []
+        , Html.div
+            (if box.direction == Horizontal then
+                [ HA.class "resize-handle-horiz"
+                , HA.style "left" (String.fromInt (lateral - 2) ++ "px")
+                , Html.Events.on "mousedown"
+                    (Decode.field "pageX" Decode.int
+                        |> Decode.map StartGroupsBarResize
+                    )
+                ]
+
+             else
+                [ HA.class "resize-handle-vert"
+                , Html.Events.on "mousedown"
+                    (Decode.field "pageY" Decode.int
+                        |> Decode.map StartGroupsBarResize
+                    )
+                ]
+            )
+            []
         , if box.direction == Horizontal then
             Html.div
                 [ HA.style "position" "absolute"
@@ -939,6 +1001,9 @@ type Msg
     | CancelGroupLabelEdit
     | Keypress Int
     | UpdateTime Time.Posix
+    | StartGroupsBarResize Int
+    | GroupsBarResizing Int
+    | EndGroupsBarResize
 
 
 drawGroups : TimelineBox -> Int -> Html Msg
@@ -1534,54 +1599,6 @@ sectionsView ({ direction } as box) sections width height fromTime endTime =
                 _ ->
                     ( Nothing, Nothing )
 
-        cursor =
-            case box.interaction of
-                ResizeLeft _ _ ->
-                    if box.direction == Horizontal then
-                        "ew-resize"
-
-                    else
-                        "ns-resize"
-
-                ResizeRight _ _ ->
-                    if box.direction == Horizontal then
-                        "ew-resize"
-
-                    else
-                        "ns-resize"
-
-                Select _ _ _ ( _, ( sizeDuration, sizeLine ) ) ->
-                    if ( Moment.fromDuration sizeDuration, sizeLine ) > ( 0, 0 ) then
-                        "crosshair"
-
-                    else
-                        "default"
-
-                MouseOver ( posix, y ) ->
-                    let
-                        mbsec =
-                            findSection posix ( y, 1 - (4 / box.lineSize) ) box.sections
-                    in
-                    case mbsec of
-                        Just sec ->
-                            -- if h > (sec.section.end - pixel) || h < (sec.section.start + pixel) then
-                            --     getter.h ( "col-resize", "row-resize" )
-                            -- else
-                            if Moment.greaterThan posix (Moment.subtractDuration sec.section.end margin) then
-                                getter.h ( "ew-resize", "ns-resize" )
-
-                            else if Moment.lessThan posix (Moment.addDurationToPosix sec.section.start margin) then
-                                getter.h ( "ew-resize", "ns-resize" )
-
-                            else
-                                "default"
-
-                        Nothing ->
-                            "default"
-
-                _ ->
-                    "default"
-
         scrollX =
             getter.h ( box.start, box.sectionOffsetY )
 
@@ -1705,7 +1722,6 @@ sectionsView ({ direction } as box) sections width height fromTime endTime =
             , HA.style "top" "0"
             , HA.style "width" (String.fromInt width ++ "px")
             , HA.style "height" (String.fromInt height ++ "px")
-            , HA.style "cursor" cursor
             , wheelEvent SectionsWheel
             , moveEvent SectionsMove
             , mouseDownEvent SectionsDown
@@ -1716,6 +1732,71 @@ sectionsView ({ direction } as box) sections width height fromTime endTime =
             ]
             []
         ]
+
+
+mouseCursor : TimelineBox -> String
+mouseCursor box =
+    let
+        margin =
+            6
+                * duration.day
+                / box.zoom
+                |> round
+                |> Moment.toDuration
+    in
+    case box.interaction of
+        ResizeLeft _ _ ->
+            if box.direction == Horizontal then
+                "ew-resize"
+
+            else
+                "ns-resize"
+
+        ResizeRight _ _ ->
+            if box.direction == Horizontal then
+                "ew-resize"
+
+            else
+                "ns-resize"
+
+        Select _ _ _ ( _, ( sizeDuration, sizeLine ) ) ->
+            if ( Moment.fromDuration sizeDuration, sizeLine ) > ( 0, 0 ) then
+                "crosshair"
+
+            else
+                "default"
+
+        MouseOver ( posix, y ) ->
+            let
+                mbsec =
+                    findSection posix ( y, 1 - (4 / box.lineSize) ) box.sections
+            in
+            case mbsec of
+                Just sec ->
+                    -- if h > (sec.section.end - pixel) || h < (sec.section.start + pixel) then
+                    --     getter.h ( "col-resize", "row-resize" )
+                    -- else
+                    if Moment.greaterThan posix (Moment.subtractDuration sec.section.end margin) then
+                        (directionGetter box.direction).h ( "ew-resize", "ns-resize" )
+
+                    else if Moment.lessThan posix (Moment.addDurationToPosix sec.section.start margin) then
+                        (directionGetter box.direction).h ( "ew-resize", "ns-resize" )
+
+                    else
+                        "default"
+
+                Nothing ->
+                    "default"
+
+        ResizeGroups _ ->
+            if box.direction == Horizontal then
+                "col-resize"
+
+            else
+                "row-resize"
+
+        _ ->
+            "default"
 
 
 drawHtmlSections :
@@ -2444,7 +2525,14 @@ update msg bb rect =
 
                 ( 78, _ ) ->
                     -- "n"
-                    showDate box.currentPosix rect.width box
+                    showDate box.currentPosix
+                        (if box.direction == Horizontal then
+                            rect.width
+
+                         else
+                            rect.height
+                        )
+                        box
                         |> updateSelection emptySelection
                         |> selectAction
 
@@ -2469,7 +2557,15 @@ update msg bb rect =
                     in
                     case ( List.head selection, Extra.last selection ) of
                         ( Just first, Just last ) ->
-                            zoomOver first.start last.end rect.width box
+                            zoomOver first.start
+                                last.end
+                                (if box.direction == Horizontal then
+                                    rect.width
+
+                                 else
+                                    rect.height
+                                )
+                                box
                                 |> updateSelection emptySelection
                                 |> selectAction
 
@@ -2482,8 +2578,30 @@ update msg bb rect =
         UpdateTime posix ->
             noAction { box | currentPosix = posix }
 
+        StartGroupsBarResize int ->
+            noAction { box | interaction = ResizeGroups int }
+
+        GroupsBarResizing int ->
+            case box.interaction of
+                ResizeGroups start ->
+                    noAction
+                        { box
+                            | groupsSize = max (box.groupsSize + int - start) 40
+                            , interaction = ResizeGroups int
+                        }
+
+                _ ->
+                    noAction box
+
+        EndGroupsBarResize ->
+            ( { box | interaction = MouseOver ( Time.millisToPosix -1, -1 ) }
+            , ChangeGroupsSize box.groupsSize
+            , Cmd.none
+            )
 
 
+
+-- noAction { box | groupsResizing = Nothing }
 {-
    CSS functions
 -}
@@ -2676,5 +2794,23 @@ styles =
             , sisterColor "problem"
             , sisterColor "warning"
             , sisterColor "ok"
+            ]
+        , child ".resize-handle-horiz"
+            [ prop "position" "absolute"
+            , prop "top" "0"
+            , prop "width" "3px"
+            , prop "height" "100%"
+            , prop "cursor" "col-resize"
+            , prop "background" "transparent"
+            , prop "z-index" "100"
+            ]
+        , child ".resize-handle-vert"
+            [ prop "position" "relative"
+            , prop "top" "-1px"
+            , prop "height" "3px"
+            , prop "width" "100%"
+            , prop "cursor" "row-resize"
+            , prop "background" "transparent"
+            , prop "z-index" "100"
             ]
         ]

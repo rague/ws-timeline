@@ -300,6 +300,9 @@ sectionsMove box { x, y } =
         EditGroupLabel _ _ ->
             noAction box
 
+        ResizeGroups _ ->
+            noAction box
+
 
 sectionsDown : TimelineBox -> Event -> ( TimelineBox, Action, Cmd msg )
 sectionsDown box { x, y, altKey, shiftKey, button } =

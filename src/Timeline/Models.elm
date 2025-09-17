@@ -315,6 +315,7 @@ type alias TimelineBox =
     , displayAxis : Bool
     , wrapText : Bool
     , currentPosix : Posix
+    , groupsSize : Int
     }
 
 
@@ -339,6 +340,7 @@ type Interaction
     | ResizeLeft Position Duration
     | Draw Posix Posix Int
     | EditGroupLabel GroupId String
+    | ResizeGroups Int
 
 
 type MoveType

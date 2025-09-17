@@ -19,6 +19,7 @@ type Action
     | DuplicateSections Selection
     | ChangeZoom { start : Posix, zoom : Float, sectionOffsetY : Float, lineSize : Float }
     | Split Selection Posix
+    | ChangeGroupsSize Int
 
 
 noAction : TimelineBox -> ( TimelineBox, Action, Cmd msg )
