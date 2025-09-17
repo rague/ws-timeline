@@ -44,7 +44,8 @@ main =
                             (Time.millisToPosix 0)
                             |> Timeline.canEditGroups False
                             |> Timeline.canSortGroups False
-                            |> Timeline.changeDirection Timeline.Models.Vertical
+
+                  -- |> Timeline.changeDirection Timeline.Models.Vertical
                   , box =
                         { width = 1000
                         , height = 500

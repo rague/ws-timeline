@@ -687,7 +687,7 @@ view attrs box rect =
                 , HA.style "top" (String.fromInt axisSize ++ "px")
                 , HA.style "overflow" "hidden"
                 , wheelEvent GroupsWheel
-                , moveY0Event SectionsMove
+                , moveX0Event SectionsMove
                 ]
 
              else
