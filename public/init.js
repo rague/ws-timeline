@@ -207,17 +207,29 @@ window.addEventListener('load', async (event) => {
       const table = await grist.getTable();
       console.log("WS: UPDATE FIELD", change);
 
-      await table.update(
-        change.ids.map(id => {
+      const upd = [];
+      for (const id of change.ids) {
+        const o = { id };
+        o.fields = {};
+        if (change.value.add) {
+          const orig = await grist.fetchSelectedRecord(id, { format: "rows", keepEncoded: false, expandRefs: false });
+          o.fields[change.field] = ["L"].concat(Array.from(new Set(orig[change.field].concat(change.value.add))));
 
-          const o = { id };
-          o.fields = {};
+        } else if (change.value.remove) {
+
+          const orig = await grist.fetchSelectedRecord(id, { format: "rows", keepEncoded: false, expandRefs: false });
+          let s = new Set(orig[change.field]);
+          s.delete(change.value.remove);
+          o.fields[change.field] = ["L"].concat(Array.from(s));
+
+        } else
           o.fields[change.field] = change.value;
-          // console.log("WS: UPD FIELD "+id, o);
-          return o;
 
-        })
-      );
+        // console.log("WS: UPD FIELD " + id, o);
+        upd.push(o);
+      }
+
+      await table.update(upd);
     } catch (err) {
       sendError(err);
     }
@@ -293,7 +305,7 @@ window.addEventListener('load', async (event) => {
   app.ports.cloneRecords.subscribe(async change => {
     try {
 
-      const t = rawtable;
+      const rawt = rawtable;
       const colMeta = await colTypesFetcher.getColMeta();
       const colTypes = await colTypesFetcher.getColTypes();
       const isFormula = await colTypesFetcher.getColIsFormula();
@@ -349,12 +361,12 @@ window.addEventListener('load', async (event) => {
 
           evt = makeEventInValidFormat(evt);
 
-          const index = t.id.indexOf(id);
+          const index = rawt.id.indexOf(id);
 
           if (index === -1) return;
 
           const cols = colMeta.filter(col => !(col.colId === "manualSort") && (col.isFormula === false)).map(col => col.colId);
-          let orig = Object.fromEntries(cols.map(col => [col, t[col][index]]));
+          let orig = Object.fromEntries(cols.map(col => [col, rawt[col][index]]));
           // let orig = await grist.fetchSelectedRecord(id, {format: "rows", includeColumns: "all", keepEncoded: false});
 
           if (!evt) {
@@ -392,7 +404,7 @@ window.addEventListener('load', async (event) => {
   app.ports.splitRecords.subscribe(async change => {
     try {
 
-      const t = rawtable;
+      const rawt = rawtable;
       const colMeta = await colTypesFetcher.getColMeta();
       let updateR = [], createR = [];
       for (const id of change.ids) {
@@ -419,11 +431,11 @@ window.addEventListener('load', async (event) => {
 
           rightEvt = makeEventInValidFormat(rightEvt);
 
-          const index = t.id.indexOf(id);
+          const index = rawt.id.indexOf(id);
           if (index === -1) continue;
 
           const cols = colMeta.filter(col => !(col.colId === "manualSort") && (col.isFormula === false)).map(col => col.colId);
-          let orig = Object.fromEntries(cols.map(col => [col, t[col][index]]));
+          let orig = Object.fromEntries(cols.map(col => [col, rawt[col][index]]));
 
           for (var prop in rightEvt.fields) {
             orig[prop] = rightEvt.fields[prop];
@@ -569,8 +581,6 @@ window.addEventListener('load', async (event) => {
   });
 
   grist.onRecords(async (records, mappings) => {
-    // console.log(await grist.fetchSelectedRecord(records[0].id, {includeColumns: "all", keepEncoded: true}));
-
     if (mappings) {
       _mappings = mappings;
       colTypesFetcher.gotMappings(mappings);
@@ -581,15 +591,16 @@ window.addEventListener('load', async (event) => {
 
 
     mappedRecords = grist.mapColumnNames(records, mappings);
-    console.log("WS: MAPPINGS", mappings);
+    // console.log("WS: MAPPINGS", mappings);
     // console.log("WS: MAPPED", mappedRecords);
+    console.log("WS: RECORDS", records);
     // if any records were successfully mapped, create or update them in the calendar
     if (mappedRecords) {
       const colOptions = await colTypesFetcher.getColOptions();
       const couleur = colOptions[mappings.couleur];
 
-      let oneid;
       rawtable = await grist.selectedTable.getTableId().then(id => grist.docApi.fetchTable(id));
+      // console.log("WS: RAWTABLE", rawtable);
 
       const data = mappedRecords.filter(rec => {
         if (paramEndDate) {
@@ -609,17 +620,25 @@ window.addEventListener('load', async (event) => {
           clone.duree = clone.duree * timeFactor;
         }
         clone.couleur = couleur?.choiceOptions?.[clone.couleur]?.fillColor;
-        clone.groupeId = rawtable[mappings.groupe][rawtable.id.indexOf(rec.id)];
-        clone.groupeId = clone.groupeId ? clone.groupeId + "" : "";
+
+        clone.groupeId = clone.groupe?.constructor?.name == "Reference" ? clone.groupe.rowId : clone.groupe;
+        delete clone.groupe;
         if (mappings.sousGroupe) {
-          clone.sousGroupeId = rawtable[mappings.sousGroupe][rawtable.id.indexOf(rec.id)];
-          clone.sousGroupeId = clone.sousGroupeId ? clone.sousGroupeId + "" : "";
-
+          clone.sousGroupeId = clone.sousGroupe?.constructor?.name == "Reference" ? clone.sousGroupe.rowId : clone.sousGroupe;
+          delete clone.sousGroupe;
         }
-        clone.fields = Object.fromEntries(mappings.fields.map((key, idx) => [key, clone.fields[idx]]));
-        // console.log("WS: FIELDS", clone.fields);
 
-        oneid = rec.id;
+        clone.contenu = Object.fromEntries(mappings.contenu.map((key, idx) =>
+          (clone.contenu[idx].constructor?.name == "Reference") ?
+            [key, clone.contenu[idx].rowId]
+            : [key, clone.contenu[idx]]
+        ));
+
+        clone.fields = Object.fromEntries(mappings.fields.map((key, idx) =>
+          (clone.fields[idx].constructor?.name == "Reference") ?
+            [key, clone.fields[idx].rowId]
+            : [key, clone.fields[idx]]
+        ));
 
         return clone;
       });
@@ -627,26 +646,16 @@ window.addEventListener('load', async (event) => {
 
 
       const colMeta = await colTypesFetcher.getColMeta();
-      const allFields = mappings.fields.concat(mappings.contenu, mappings.groupe, mappings.sousGroupe ?? []);
-      const editableTypes_ = allFields.map(m => colMeta.find(cm => cm.colId === m))
-        .filter(v => v !== undefined)
-      const editableTypes = await Promise.all(
-        editableTypes_.map(populate));
-      console.log("WS: FIELDS", editableTypes);
+      const usedFieldsNames = Array.from(new Set(mappings.fields.concat(mappings.contenu, mappings.groupe, mappings.sousGroupe ?? [])));
+      const usedFields_ = usedFieldsNames.map(m => colMeta.find(cm => cm.colId === m))
+        .filter(v => v !== undefined);
 
-
-      // let groupeType = colMeta.find(cm => cm.colId === mappings.groupe);
-      // let sousGroupeType = colMeta.find(cm => cm.colId === mappings.sousGroupe);
-
-      // if (groupeType)
-      //   groupeType = await populate(groupeType);
-      // if (sousGroupeType)
-      //   sousGroupeType = await populate(sousGroupeType);
-
+      const usedFields = await Promise.all(usedFields_.map(populate));
+      console.log("WS: FIELDS", usedFields);
 
       setRecordsArgs = {
         rows: data,
-        fields: editableTypes,
+        fields: usedFields,
         content: mappings.contenu,
         editable: mappings.fields,
         group: mappings.groupe,
@@ -664,7 +673,7 @@ window.addEventListener('load', async (event) => {
     }
 
 
-  });
+  }, { expandRefs: false });
 
   grist.onOptions(opts => {
     if (!options) {
@@ -833,9 +842,9 @@ function sendError(err) {
 
 async function populate(f) {
 
-  if (f.type.startsWith("Ref:")) {
+  if (f.type.startsWith("Ref:") || f.type.startsWith("RefList:")) {
     try {
-      const table = await grist.docApi.fetchTable(f.type.substring(4));
+      const table = await grist.docApi.fetchTable(f.type.split(":")[1]);
       const columns = await grist.docApi.fetchTable('_grist_Tables_column');
       const index = columns.id.indexOf(f.visibleCol);
       // console.log("WS: TABLE", table);

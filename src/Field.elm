@@ -1,4 +1,4 @@
-module Field exposing (Align(..), ChoiceId(..), ChoiceRecord, Currency, Field, FieldType(..), Locale, NumSign(..), NumberFormat, NumberMode(..), Values(..), choiceIdToRawString, choiceIdToString, currencyFromString, decoder, encodeChoiceId, floatToString, localeForLanguage, standardFloat, standardInt, stringToChoiceId)
+module Field exposing (Align(..), ChoiceRecord, Currency, FValue(..), Field, FieldType(..), Locale, NumSign(..), NumberFormat, NumberMode(..), Values(..), currencyFromString, decoder, encodeValue, floatToString, localeForLanguage, standardFloat, standardInt, valueDecoder, valueListConcat, valueMapList, valueToFloat, valueToInt, valueToRawString)
 
 import Dict exposing (Dict)
 import FormatNumber as FNum
@@ -37,6 +37,7 @@ type FieldType
     | ToOne String
     | ToMany String
     | Ref (List ChoiceRecord)
+    | RefList (List ChoiceRecord)
     | Choice (List ChoiceRecord)
     | ChoiceList (List ChoiceRecord)
     | Unknow
@@ -86,7 +87,7 @@ type NumSign
 
 
 type alias ChoiceRecord =
-    { id : ChoiceId
+    { id : FValue
     , label : String
     , textColor : String
     , backgroundColor : String
@@ -97,51 +98,117 @@ type alias ChoiceRecord =
     }
 
 
-type ChoiceId
-    = ChoiceString String
-    | ChoiceInt Int
+type FValue
+    = VString String
+    | VInt Int
+    | VFloat Float
+    | VBool Bool
+    | VList (List FValue)
 
 
-choiceIdToString : ChoiceId -> String
-choiceIdToString cid =
+valueMapList : (List FValue -> List FValue) -> FValue -> FValue
+valueMapList f v =
+    case v of
+        VList l ->
+            VList (f l)
+
+        _ ->
+            v
+
+
+valueListConcat : List FValue -> FValue
+valueListConcat val =
+    List.filterMap
+        (\v ->
+            case v of
+                VList list ->
+                    Just list
+
+                _ ->
+                    Nothing
+        )
+        val
+        |> List.concat
+        |> VList
+
+
+valueToInt : FValue -> Maybe Int
+valueToInt fv =
+    case fv of
+        VInt int ->
+            Just int
+
+        _ ->
+            Nothing
+
+
+valueToFloat : FValue -> Maybe Float
+valueToFloat fv =
+    case fv of
+        VFloat float ->
+            Just float
+
+        _ ->
+            Nothing
+
+
+valueToRawString : FValue -> String
+valueToRawString cid =
     case cid of
-        ChoiceString str ->
+        VString str ->
             str
 
-        ChoiceInt int ->
-            "_Int:" ++ String.fromInt int
-
-
-choiceIdToRawString : ChoiceId -> String
-choiceIdToRawString cid =
-    case cid of
-        ChoiceString str ->
-            str
-
-        ChoiceInt int ->
+        VInt int ->
             String.fromInt int
 
+        VFloat float ->
+            String.fromFloat float
 
-stringToChoiceId : String -> Maybe ChoiceId
-stringToChoiceId str =
-    if String.startsWith "_Int:" str then
-        String.dropLeft 5 str
-            |> String.toInt
-            |> Maybe.map ChoiceInt
+        VBool True ->
+            "True"
 
-    else
-        ChoiceString str
-            |> Just
+        VBool False ->
+            "False"
+
+        VList vals ->
+            "["
+                ++ (List.map valueToRawString vals
+                        |> String.join ","
+                   )
+                ++ "]"
 
 
-encodeChoiceId : ChoiceId -> Value
-encodeChoiceId cid =
+encodeValue : FValue -> Value
+encodeValue cid =
     case cid of
-        ChoiceString str ->
+        VString str ->
             Encode.string str
 
-        ChoiceInt int ->
+        VInt int ->
             Encode.int int
+
+        VFloat float ->
+            Encode.float float
+
+        VBool True ->
+            Encode.bool True
+
+        VBool False ->
+            Encode.bool False
+
+        VList vals ->
+            Encode.list encodeValue vals
+
+
+valueDecoder : Decoder FValue
+valueDecoder =
+    Decode.oneOf
+        [ Decode.map VString Decode.string
+        , Decode.map VInt Decode.int
+        , Decode.map VFloat Decode.float
+        , Decode.map VBool Decode.bool
+        , Decode.map VList (Decode.list (Decode.lazy (\_ -> valueDecoder)))
+        ]
 
 
 decoder : ChoiceRecord -> Decoder Field
@@ -208,6 +275,9 @@ valuesDecoderFor ofType =
         Ref _ ->
             valuesDecoder Decode.int ListInt
 
+        RefList _ ->
+            valuesDecoder Decode.int ListInt
+
         Choice _ ->
             valuesDecoder Decode.string ListString
 
@@ -247,6 +317,9 @@ emptyValuesFor ofType =
         Ref _ ->
             ListInt []
 
+        RefList _ ->
+            ListInt []
+
         Choice _ ->
             ListString []
 
@@ -270,6 +343,9 @@ fieldTypeDecoder defaultChoice =
                     radical =
                         if String.startsWith "Ref:" t then
                             "Ref"
+
+                        else if String.startsWith "RefList:" t then
+                            "RefList"
 
                         else if String.startsWith "DateTime:" t then
                             "DateTime"
@@ -307,6 +383,14 @@ fieldTypeDecoder defaultChoice =
                                 ]
                             )
 
+                    "RefList" ->
+                        Decode.map RefList
+                            (Decode.oneOf
+                                [ Decode.field "references" <| Decode.list (refDecoder defaultChoice)
+                                , Decode.succeed []
+                                ]
+                            )
+
                     "Choice" ->
                         Decode.map2
                             (\chl opts ->
@@ -315,7 +399,7 @@ fieldTypeDecoder defaultChoice =
                                         Dict.get ch opts
                                             |> Maybe.withDefault
                                                 { defaultChoice
-                                                    | id = ChoiceString ch
+                                                    | id = VString ch
                                                     , label = ch
                                                 }
                                     )
@@ -325,8 +409,24 @@ fieldTypeDecoder defaultChoice =
                             (Decode.at [ "widgetOptions", "choices" ] (Decode.list Decode.string))
                             (Decode.at [ "widgetOptions", "choiceOptions" ] (Decode.andThen (choicesDecoder defaultChoice) DecodeX.keys))
 
-                    -- "ChoiceList" ->
-                    --     Decode.succeed <| FChoiceList []
+                    "ChoiceList" ->
+                        Decode.map2
+                            (\chl opts ->
+                                List.map
+                                    (\ch ->
+                                        Dict.get ch opts
+                                            |> Maybe.withDefault
+                                                { defaultChoice
+                                                    | id = VString ch
+                                                    , label = ch
+                                                }
+                                    )
+                                    chl
+                                    |> ChoiceList
+                            )
+                            (Decode.at [ "widgetOptions", "choices" ] (Decode.list Decode.string))
+                            (Decode.at [ "widgetOptions", "choiceOptions" ] (Decode.andThen (choicesDecoder defaultChoice) DecodeX.keys))
+
                     _ ->
                         Decode.succeed Unknow
             )
@@ -411,7 +511,7 @@ choicesDecoder defaultChoice keys =
 choiceDecoder : ChoiceRecord -> String -> Decoder ChoiceRecord
 choiceDecoder defaultChoice label =
     Decode.succeed ChoiceRecord
-        |> hardcoded (ChoiceString label)
+        |> hardcoded (VString label)
         |> hardcoded label
         |> optional "textColor" Decode.string defaultChoice.textColor
         |> optional "fillColor" Decode.string defaultChoice.backgroundColor
@@ -424,7 +524,7 @@ choiceDecoder defaultChoice label =
 refDecoder : ChoiceRecord -> Decoder ChoiceRecord
 refDecoder defaultChoice =
     Decode.succeed ChoiceRecord
-        |> required "id" (Decode.map ChoiceInt Decode.int)
+        |> required "id" (Decode.map VInt Decode.int)
         |> required "label" Decode.string
         |> hardcoded defaultChoice.textColor
         |> hardcoded defaultChoice.backgroundColor

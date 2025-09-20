@@ -7,7 +7,7 @@ import Browser.Events
 import Date
 import Dict exposing (Dict)
 import Element exposing (Color)
-import Field exposing (Field)
+import Field exposing (ChoiceRecord, FValue, Field)
 import Html
 import Html.Attributes as HA
 import Html.Events
@@ -68,6 +68,7 @@ type Msg
     | ValidateText View String String
     | CancelChange View String
     | SelectizeMsg View String (Maybe Field.ChoiceRecord) (Selectize.Msg Field.ChoiceRecord)
+    | RemoveChoice String FValue
     | FocusField String
     | CreateNew
     | NoOp
@@ -639,7 +640,7 @@ inspectorView model fields states =
 
 
 fieldsView : View -> Model -> List String -> Dict String FieldState -> Html.Html Msg
-fieldsView v ({ translations } as model) fields states =
+fieldsView viewType ({ translations } as model) fields states =
     let
         locale =
             Field.localeForLanguage model.language
@@ -694,19 +695,31 @@ fieldsView v ({ translations } as model) fields states =
                     )
                     0
 
+        drawChoice =
+            \subv choice ->
+                Html.span
+                    [ HA.style "background-color" choice.backgroundColor
+                    , HA.style "color" choice.textColor
+                    , HA.style "padding" "3px"
+                    , HA.style "margin" "2px"
+                    , HA.style "border-radius" "3px"
+                    , HA.style "display" "inline-block"
+                    ]
+                    [ Html.text choice.label
+                    , subv
+                    ]
+
         drawChoices =
             \field choices ->
                 case Dict.get field.name model.selectStates of
                     Just selectState ->
                         let
                             selectedItem =
-                                Maybe.andThen Field.stringToChoiceId field.str
-                                    |> Maybe.andThen
-                                        (\choiceid ->
-                                            ListX.find (\c -> c.id == choiceid || c.label == Maybe.withDefault "" field.str) choices
-                                        )
-
-                            -- |> Debug.log ("WS: selectedItem " ++ Maybe.withDefault "-" field.str)
+                                Maybe.andThen
+                                    (\val ->
+                                        ListX.find (\c -> c.id == val) choices
+                                    )
+                                    field.mbval
                         in
                         Selectize.view
                             (Selectize.viewConfig
@@ -732,17 +745,7 @@ fieldsView v ({ translations } as model) fields states =
                                                   )
                                                 ]
                                             ]
-                                        , children =
-                                            [ Html.span
-                                                [ HA.style "background-color" choice.backgroundColor
-                                                , HA.style "color" choice.textColor
-                                                , HA.style "padding" "3px"
-                                                , HA.style "border-radius" "3px"
-                                                ]
-                                                [ Html.text
-                                                    choice.label
-                                                ]
-                                            ]
+                                        , children = [ drawChoice (Html.text "") choice ]
                                         }
                                 , divider =
                                     \title ->
@@ -782,18 +785,18 @@ fieldsView v ({ translations } as model) fields states =
                                                 "<" ++ T.multiple model.translations ++ ">"
 
                                             else
-                                                "<" ++ T.empty model.translations ++ ">"
+                                                ""
                                         }
                                 }
                             )
                             selectedItem
                             selectState
-                            |> Html.map (SelectizeMsg v field.name selectedItem)
+                            |> Html.map (SelectizeMsg viewType field.name selectedItem)
 
                     Nothing ->
                         Html.text ""
     in
-    (if v == Inspector then
+    (if viewType == Inspector then
         [ (if selSize > 1 then
             String.fromInt selSize ++ " " ++ T.momentPlural translations
 
@@ -869,17 +872,17 @@ fieldsView v ({ translations } as model) fields states =
                         case ( Dict.get key model.fields, Dict.get key states ) of
                             ( Just field, mbvalue ) ->
                                 case mbvalue of
-                                    Just (Val str) ->
-                                        Just { field = field, name = key, label = field.label, str = Just str, multi = False, error = Nothing }
+                                    Just (Val val) ->
+                                        Just { field = field, name = key, label = field.label, mbval = Just val, multi = False, error = Nothing }
 
                                     Just Multi ->
-                                        Just { field = field, name = key, label = field.label, str = Nothing, multi = True, error = Nothing }
+                                        Just { field = field, name = key, label = field.label, mbval = Nothing, multi = True, error = Nothing }
 
                                     Just (Error _ str) ->
-                                        Just { field = field, name = key, label = field.label, str = Nothing, multi = False, error = Just <| "Erreur : " ++ str }
+                                        Just { field = field, name = key, label = field.label, mbval = Nothing, multi = False, error = Just <| "Erreur : " ++ str }
 
                                     _ ->
-                                        Just { field = field, name = key, label = field.label, str = Nothing, multi = False, error = Just "Erreur" }
+                                        Just { field = field, name = key, label = field.label, mbval = Nothing, multi = False, error = Just "Erreur" }
 
                             _ ->
                                 Nothing
@@ -910,6 +913,72 @@ fieldsView v ({ translations } as model) fields states =
                                 Field.Choice choices ->
                                     drawChoices field choices
 
+                                Field.ChoiceList choices ->
+                                    Html.div []
+                                        (drawChoices field choices
+                                            :: (case field.mbval of
+                                                    Just (Field.VList list) ->
+                                                        List.map
+                                                            (\v ->
+                                                                case ListX.find (\c -> c.id == v) choices of
+                                                                    Just choice ->
+                                                                        Html.div []
+                                                                            [ drawChoice
+                                                                                (Phosphor.xCircle Fill
+                                                                                    |> Phosphor.withSize 14
+                                                                                    |> Phosphor.withSizeUnit "px"
+                                                                                    |> Phosphor.toHtml
+                                                                                        [ HA.style "vertical-align" "sub"
+                                                                                        , HA.style "margin-left" "2px"
+                                                                                        , Html.Events.onClick (RemoveChoice field.field.id choice.id)
+                                                                                        ]
+                                                                                )
+                                                                                choice
+                                                                            ]
+
+                                                                    Nothing ->
+                                                                        Html.div [] []
+                                                            )
+                                                            list
+
+                                                    _ ->
+                                                        []
+                                               )
+                                        )
+
+                                Field.RefList choices ->
+                                    Html.div []
+                                        (drawChoices field choices
+                                            :: (case field.mbval of
+                                                    Just (Field.VList list) ->
+                                                        List.map
+                                                            (\v ->
+                                                                case ListX.find (\c -> c.id == v) choices of
+                                                                    Just choice ->
+                                                                        Html.div []
+                                                                            [ drawChoice
+                                                                                (Phosphor.xCircle Fill
+                                                                                    |> Phosphor.withSize 14
+                                                                                    |> Phosphor.withSizeUnit "px"
+                                                                                    |> Phosphor.toHtml
+                                                                                        [ HA.style "vertical-align" "sub"
+                                                                                        , HA.style "margin-left" "2px"
+                                                                                        , Html.Events.onClick (RemoveChoice field.field.id choice.id)
+                                                                                        ]
+                                                                                )
+                                                                                choice
+                                                                            ]
+
+                                                                    Nothing ->
+                                                                        Html.div [] []
+                                                            )
+                                                            list
+
+                                                    _ ->
+                                                        []
+                                               )
+                                        )
+
                                 Field.Ref choices ->
                                     drawChoices field choices
 
@@ -927,13 +996,13 @@ fieldsView v ({ translations } as model) fields states =
                                              else
                                                 ""
                                             )
-                                        , Html.Events.onInput (ChangeText v field.name)
+                                        , Html.Events.onInput (ChangeText viewType field.name)
                                         , Html.Events.on "keyup" <|
                                             Decode.andThen
                                                 (\key ->
-                                                    case ( key, field.str ) of
-                                                        ( 27, _ ) ->
-                                                            Decode.succeed (CancelChange v field.name)
+                                                    case key of
+                                                        27 ->
+                                                            Decode.succeed (CancelChange viewType field.name)
 
                                                         _ ->
                                                             Decode.fail ""
@@ -942,18 +1011,21 @@ fieldsView v ({ translations } as model) fields states =
                                         , Html.Events.onFocus (FocusField field.name)
                                         , if field.name == model.focus then
                                             Html.Events.onBlur
-                                                (case field.str of
-                                                    Just str ->
-                                                        ValidateText v field.name str
+                                                (case field.mbval of
+                                                    Just (Field.VString str) ->
+                                                        ValidateText viewType field.name str
 
-                                                    Nothing ->
+                                                    _ ->
                                                         NoOp
                                                 )
 
                                           else
                                             HA.class ""
                                         ]
-                                        [ Html.text <| Maybe.withDefault "" field.str ]
+                                        [ Maybe.map Field.valueToRawString field.mbval
+                                            |> Maybe.withDefault ""
+                                            |> Html.text
+                                        ]
 
                                 _ ->
                                     Html.input
@@ -1005,38 +1077,40 @@ fieldsView v ({ translations } as model) fields states =
                                                     "left"
                                             )
                                         , if field.field.ofType == Field.Bool then
-                                            HA.checked (Maybe.map ((==) "true") field.str |> Maybe.withDefault False)
+                                            HA.checked (field.mbval == Just (Field.VBool True))
 
                                           else
-                                            HA.value <| Maybe.withDefault "" field.str
+                                            Maybe.map Field.valueToRawString field.mbval
+                                                |> Maybe.withDefault ""
+                                                |> HA.value
                                         , if field.field.ofType == Field.Bool then
                                             Html.Events.onClick
-                                                (ValidateText v
+                                                (ValidateText viewType
                                                     field.name
                                                     (Maybe.map
                                                         (\b ->
-                                                            if b == "true" then
+                                                            if b == Field.VBool True then
                                                                 "false"
 
                                                             else
                                                                 "true"
                                                         )
-                                                        field.str
+                                                        field.mbval
                                                         |> Maybe.withDefault "true"
                                                     )
                                                 )
 
                                           else
-                                            Html.Events.onInput (ChangeText v field.name)
+                                            Html.Events.onInput (ChangeText viewType field.name)
                                         , Html.Events.on "keyup" <|
                                             Decode.andThen
                                                 (\key ->
-                                                    case ( key, field.str ) of
+                                                    case ( key, field.mbval ) of
                                                         ( 27, _ ) ->
-                                                            Decode.succeed (CancelChange v field.name)
+                                                            Decode.succeed (CancelChange viewType field.name)
 
-                                                        ( 13, Just str ) ->
-                                                            Decode.succeed (ValidateText v field.name str)
+                                                        ( 13, Just (Field.VString str) ) ->
+                                                            Decode.succeed (ValidateText viewType field.name str)
 
                                                         _ ->
                                                             Decode.fail ""
@@ -1045,11 +1119,11 @@ fieldsView v ({ translations } as model) fields states =
                                         , Html.Events.onFocus (FocusField field.name)
                                         , if field.name == model.focus then
                                             Html.Events.onBlur
-                                                (case field.str of
-                                                    Just str ->
-                                                        ValidateText v field.name str
+                                                (case field.mbval of
+                                                    Just (Field.VString str) ->
+                                                        ValidateText viewType field.name str
 
-                                                    Nothing ->
+                                                    _ ->
                                                         NoOp
                                                 )
 
@@ -1067,7 +1141,7 @@ fieldsView v ({ translations } as model) fields states =
                                             ++ (List.foldl
                                                     (\rec acc ->
                                                         Dict.get field.field.id rec.fields
-                                                            |> Maybe.andThen String.toInt
+                                                            |> Maybe.andThen Field.valueToInt
                                                             |> Maybe.withDefault 0
                                                             |> (+) acc
                                                     )
@@ -1086,7 +1160,7 @@ fieldsView v ({ translations } as model) fields states =
                                                 List.foldl
                                                     (\rec acc ->
                                                         Dict.get field.field.id rec.fields
-                                                            |> Maybe.andThen String.toFloat
+                                                            |> Maybe.andThen Field.valueToFloat
                                                             |> Maybe.withDefault 0
                                                             |> (+) acc
                                                     )
@@ -1215,10 +1289,10 @@ update msg model =
         ChangeText v field str ->
             ( case v of
                 Inspector ->
-                    { model | editableStates = Dict.insert field (Val str) model.editableStates }
+                    { model | editableStates = Dict.insert field (Val (Field.VString str)) model.editableStates }
 
                 NewMoment ->
-                    { model | groupsStates = Dict.insert field (Val str) model.groupsStates }
+                    { model | groupsStates = Dict.insert field (Val (Field.VString str)) model.groupsStates }
             , Cmd.none
             )
 
@@ -1232,7 +1306,7 @@ update msg model =
 
                             else
                                 model.focus
-                        , editableStates = Dict.insert field (Val str) model.editableStates
+                        , editableStates = Dict.insert field (Val (Field.VString str)) model.editableStates
                       }
                     , makeFieldUpdate model field str
                     )
@@ -1266,7 +1340,11 @@ update msg model =
                             Dict.update field
                                 (Maybe.andThen
                                     (\_ ->
-                                        fieldsFromSelection model.timelineState.zone model.durationUnit model.timelineState.selection model.records [ field ]
+                                        statesFromSelection model.timelineState.zone
+                                            model.durationUnit
+                                            model.timelineState.selection
+                                            model.records
+                                            (Dict.filter (\_ f -> f.id == field) model.fields)
                                             |> Dict.get field
                                     )
                                 )
@@ -1280,15 +1358,35 @@ update msg model =
         NoOp ->
             ( model, Cmd.none )
 
+        RemoveChoice field value ->
+            ( { model
+                | editableStates =
+                    Dict.update field
+                        (\mbv ->
+                            case mbv of
+                                Just (Val (Field.VList list)) ->
+                                    Val
+                                        (Field.VList
+                                            (ListX.remove value list)
+                                        )
+                                        |> Just
+
+                                _ ->
+                                    mbv
+                        )
+                        model.editableStates
+              }
+            , makeFieldUpdate_ model.timelineState.selection
+                field
+                (Encode.object [ ( "remove", Field.encodeValue value ) ])
+            )
+
         SelectizeMsg v field selectedItem selectizeMsg ->
             case Dict.get field model.selectStates of
                 Just selectState ->
                     let
                         ( newMenu, menuCmd, action ) =
-                            Selectize.update
-                                selectedItem
-                                selectState
-                                selectizeMsg
+                            Selectize.update selectedItem selectState selectizeMsg
 
                         newModel =
                             { model | selectStates = Dict.insert field newMenu model.selectStates }
@@ -1301,31 +1399,76 @@ update msg model =
                             let
                                 updsel =
                                     \fields ->
-                                        case maybechoice of
-                                            Just choice ->
-                                                ( Dict.insert field (Val (Field.choiceIdToString choice.id)) fields
-                                                , if validate then
-                                                    makeFieldUpdate_ model.timelineState.selection field (Field.encodeChoiceId choice.id)
+                                        case Dict.get field model.fields |> Maybe.map .ofType of
+                                            Just (Field.ChoiceList _) ->
+                                                updList fields
 
-                                                  else
-                                                    Cmd.none
-                                                )
+                                            Just (Field.RefList _) ->
+                                                updList fields
 
-                                            Nothing ->
-                                                case v of
-                                                    Inspector ->
-                                                        ( Dict.insert field (Error NoValue "") fields
+                                            _ ->
+                                                case maybechoice of
+                                                    Just choice ->
+                                                        ( Dict.insert field (Val choice.id) fields
                                                         , if validate then
-                                                            makeFieldUpdate_ model.timelineState.selection field (Encode.string "")
+                                                            makeFieldUpdate_ model.timelineState.selection field (Field.encodeValue choice.id)
 
                                                           else
                                                             Cmd.none
                                                         )
 
-                                                    NewMoment ->
-                                                        ( Dict.insert field (Error NoValue "") fields
-                                                        , Cmd.none
-                                                        )
+                                                    Nothing ->
+                                                        case v of
+                                                            Inspector ->
+                                                                ( Dict.insert field (Error NoValue "") fields
+                                                                , if validate then
+                                                                    makeFieldUpdate_ model.timelineState.selection field (Encode.string "")
+
+                                                                  else
+                                                                    Cmd.none
+                                                                )
+
+                                                            NewMoment ->
+                                                                ( Dict.insert field (Error NoValue "") fields
+                                                                , Cmd.none
+                                                                )
+
+                                updList fields =
+                                    case maybechoice of
+                                        Just choice ->
+                                            ( Dict.update field
+                                                (\mbv ->
+                                                    case mbv of
+                                                        Just (Val (Field.VList list)) ->
+                                                            Val
+                                                                (Field.VList
+                                                                    (if List.member choice.id list then
+                                                                        list
+
+                                                                     else
+                                                                        list ++ [ choice.id ]
+                                                                    )
+                                                                )
+                                                                |> Just
+
+                                                        _ ->
+                                                            Val (Field.VList [ choice.id ])
+                                                                |> Just
+                                                )
+                                                fields
+                                            , if validate then
+                                                makeFieldUpdate_ model.timelineState.selection
+                                                    field
+                                                    (Encode.object [ ( "add", Field.encodeValue choice.id ) ])
+
+                                              else
+                                                Cmd.none
+                                            )
+
+                                        Nothing ->
+                                            ( fields
+                                            , Cmd.none
+                                            )
                             in
                             case v of
                                 Inspector ->
@@ -1494,7 +1637,12 @@ update msg model =
             ( { model
                 | durationUnit = du
                 , options = { options | durationUnit = du }
-                , editableStates = fieldsFromSelection model.timelineState.zone du model.timelineState.selection model.records model.editableFields
+                , editableStates =
+                    statesFromSelection model.timelineState.zone
+                        du
+                        model.timelineState.selection
+                        model.records
+                        (Dict.filter (\_ f -> List.member f.id model.editableFields) model.fields)
               }
             , Bounce.delay 500 OptionsBounceMsg
             )
@@ -1646,7 +1794,7 @@ timelineUpdate tmsg ({ options } as model) =
                                 model.editableStates
 
                             else
-                                fieldsFromSelection model.timelineState.zone model.durationUnit sel model.records model.editableFields
+                                statesFromSelection model.timelineState.zone model.durationUnit sel model.records (Dict.filter (\_ f -> List.member f.id model.editableFields) model.fields)
                       }
                     , Timeline.Models.selectionToSet sel
                         |> Set.toList
@@ -1704,7 +1852,7 @@ timelineUpdate tmsg ({ options } as model) =
             else
                 case ( action, Dict.get model.focus model.editableStates ) of
                     ( Timeline.Action.SelectSections _, Just (Val str) ) ->
-                        makeFieldUpdate model model.focus str
+                        makeFieldUpdate model model.focus (Field.valueToRawString str)
 
                     _ ->
                         Cmd.none
@@ -1824,29 +1972,80 @@ receiveData data model =
                         |> List.map
                             (\rec ->
                                 { rec
-                                    | contenu =
-                                        List.map2
-                                            (\fid str ->
-                                                case Dict.get fid fields_ of
-                                                    Just field ->
-                                                        case field.ofType of
-                                                            Field.Int format ->
-                                                                String.toFloat str
-                                                                    |> Maybe.map (Field.floatToString locale model.currency format)
-                                                                    |> Maybe.withDefault str
+                                    | groupe =
+                                        case Dict.get group fields_ of
+                                            Just field ->
+                                                case ( field.ofType, String.toInt rec.groupeId |> Maybe.map Field.VInt ) of
+                                                    ( Field.Ref choices, Just gid ) ->
+                                                        ListX.find (\c -> c.id == gid) choices
+                                                            |> Maybe.map .label
+                                                            |> Maybe.withDefault rec.groupeId
 
-                                                            Field.Float format ->
-                                                                String.toFloat str
-                                                                    |> Maybe.map (Field.floatToString locale model.currency format)
-                                                                    |> Maybe.withDefault str
+                                                    _ ->
+                                                        rec.groupeId
+
+                                            Nothing ->
+                                                rec.groupeId
+                                    , sousGroupe =
+                                        Maybe.map2
+                                            (\sgroup sousGroupeId ->
+                                                case Dict.get sgroup fields_ of
+                                                    Just field ->
+                                                        case ( field.ofType, String.toInt sousGroupeId |> Maybe.map Field.VInt ) of
+                                                            ( Field.Ref choices, Just gid ) ->
+                                                                ListX.find (\c -> c.id == gid) choices
+                                                                    |> Maybe.map .label
+                                                                    |> Maybe.withDefault sousGroupeId
 
                                                             _ ->
-                                                                str
+                                                                sousGroupeId
 
                                                     Nothing ->
-                                                        str
+                                                        rec.groupeId
                                             )
-                                            content
+                                            subgroup
+                                            rec.sousGroupeId
+                                    , contenu =
+                                        List.map
+                                            (\( fid, val ) ->
+                                                ( fid
+                                                , case Dict.get fid fields_ of
+                                                    Just field ->
+                                                        case ( field.ofType, val ) of
+                                                            ( Field.Int format, Field.VInt int ) ->
+                                                                toFloat int
+                                                                    |> Field.floatToString locale model.currency format
+                                                                    |> Field.VString
+
+                                                            ( Field.Float format, Field.VFloat float ) ->
+                                                                float
+                                                                    |> Field.floatToString locale model.currency format
+                                                                    |> Field.VString
+
+                                                            ( Field.Ref choices, Field.VInt _ ) ->
+                                                                ListX.find (\c -> c.id == val) choices
+                                                                    |> Maybe.map (\c -> Field.VString c.label)
+                                                                    |> Maybe.withDefault val
+
+                                                            ( Field.RefList choices, Field.VList list ) ->
+                                                                List.filter (\c -> List.member c.id list) choices
+                                                                    |> List.map (\c -> c.label)
+                                                                    |> String.join ","
+                                                                    |> Field.VString
+
+                                                            ( Field.ChoiceList _, Field.VList list ) ->
+                                                                list
+                                                                    |> List.map Field.valueToRawString
+                                                                    |> String.join ","
+                                                                    |> Field.VString
+
+                                                            _ ->
+                                                                val
+
+                                                    Nothing ->
+                                                        val
+                                                )
+                                            )
                                             rec.contenu
                                 }
                             )
@@ -1866,7 +2065,7 @@ receiveData data model =
                                                 , id = rec.id |> String.fromInt
                                                 , color = rec.couleur -- = Timeline.Models.findColorName rec.couleur
                                                 , isLocked = rec.isLocked
-                                                , labels = rec.contenu
+                                                , labels = rec.contenu |> List.map (Tuple.second >> Field.valueToRawString)
                                                 , hasComment = rec.comment /= Nothing
                                                 , isGlobal = rec.isGlobal
                                                 }
@@ -1898,7 +2097,7 @@ receiveData data model =
                                 |> Timeline.Update.updateSelection (sectionIdsToSelection groupsUsage sel)
 
                 editableStates =
-                    fieldsFromSelection model.timelineState.zone model.durationUnit newtl.selection recordsDict editable
+                    statesFromSelection model.timelineState.zone model.durationUnit newtl.selection recordsDict (Dict.filter (\_ f -> List.member f.id editable) fields_)
 
                 cmd =
                     if maybeSelection /= Nothing && model.hasCreated then
@@ -1956,7 +2155,14 @@ receiveData data model =
                                                     (choices |> List.map Selectize.entry)
                                                 )
 
-                                        -- Just ( field.id, Select.initState (Select.selectIdentifier field.id) )
+                                        Field.ChoiceList choices ->
+                                            Just <|
+                                                ( field.id
+                                                , Selectize.closed ("_select_" ++ field.id)
+                                                    .label
+                                                    (choices |> List.map Selectize.entry)
+                                                )
+
                                         Field.Ref choices ->
                                             Just <|
                                                 ( field.id
@@ -1965,7 +2171,14 @@ receiveData data model =
                                                     (choices |> List.map Selectize.entry)
                                                 )
 
-                                        -- Just ( field.id, Select.initState (Select.selectIdentifier field.id) )
+                                        Field.RefList choices ->
+                                            Just <|
+                                                ( field.id
+                                                , Selectize.closed ("_select_" ++ field.id)
+                                                    .label
+                                                    (choices |> List.map Selectize.entry)
+                                                )
+
                                         _ ->
                                             Nothing
                                 )
@@ -2244,13 +2457,13 @@ fieldsFromDates : Time.Zone -> DurationUnit -> Time.Posix -> Time.Posix -> Dict 
 fieldsFromDates zone durationUnit debut fin states =
     let
         debutVal =
-            debut |> Iso8601.toDateTimeString zone |> Val
+            debut |> Iso8601.toDateTimeString zone |> Field.VString |> Val
 
         finVal =
-            fin |> Iso8601.toDateTimeString zone |> Val
+            fin |> Iso8601.toDateTimeString zone |> Field.VString |> Val
 
         dureeVal =
-            Val (String.fromFloat (toFloat (Moment.durationBetween debut fin |> Moment.fromDuration) / msForDurationUnit durationUnit))
+            Val <| Field.VString <| String.fromFloat (toFloat (Moment.durationBetween debut fin |> Moment.fromDuration) / msForDurationUnit durationUnit)
     in
     states
         |> Dict.insert debutFieldId debutVal
@@ -2273,11 +2486,13 @@ updateGroupsField zone durationUnit field str fields =
         resdebut =
             Dict.get debutFieldId fields
                 |> Maybe.andThen fieldStateToMaybe
+                |> Maybe.map Field.valueToRawString
                 |> Maybe.andThen (\s -> Decode.decodeString DecodeX.datetime ("\"" ++ s ++ "\"") |> Result.toMaybe)
 
         resfin =
             Dict.get finFieldId fields
                 |> Maybe.andThen fieldStateToMaybe
+                |> Maybe.map Field.valueToRawString
                 |> Maybe.andThen (\s -> Decode.decodeString DecodeX.datetime ("\"" ++ s ++ "\"") |> Result.toMaybe)
     in
     if field == debutFieldId then
@@ -2285,7 +2500,7 @@ updateGroupsField zone durationUnit field str fields =
             ( Ok debut, Just fin ) ->
                 let
                     dureeVal =
-                        Val (String.fromFloat (toFloat (Moment.durationBetween debut fin |> Moment.fromDuration) / msForDurationUnit durationUnit))
+                        Val (Field.VString (String.fromFloat (toFloat (Moment.durationBetween debut fin |> Moment.fromDuration) / msForDurationUnit durationUnit)))
                 in
                 Dict.insert dureeFieldId dureeVal fields
 
@@ -2297,7 +2512,7 @@ updateGroupsField zone durationUnit field str fields =
             ( Just debut, Ok fin ) ->
                 let
                     dureeVal =
-                        Val (String.fromFloat (toFloat (Moment.durationBetween debut fin |> Moment.fromDuration) / msForDurationUnit durationUnit))
+                        Val (Field.VString (String.fromFloat (toFloat (Moment.durationBetween debut fin |> Moment.fromDuration) / msForDurationUnit durationUnit)))
                 in
                 Dict.insert dureeFieldId dureeVal fields
 
@@ -2309,7 +2524,12 @@ updateGroupsField zone durationUnit field str fields =
             ( Just debut, Just duree ) ->
                 let
                     finVal =
-                        Time.posixToMillis debut + (duree * msForDurationUnit durationUnit |> round) |> Time.millisToPosix |> Iso8601.toDateTimeString zone |> Val
+                        Time.posixToMillis debut
+                            + (duree * msForDurationUnit durationUnit |> round)
+                            |> Time.millisToPosix
+                            |> Iso8601.toDateTimeString zone
+                            |> Field.VString
+                            |> Val
                 in
                 Dict.insert finFieldId finVal fields
 
@@ -2326,24 +2546,24 @@ validateNewMoment model =
         mbdebut =
             Dict.get debutFieldId model.groupsStates
                 |> Maybe.andThen fieldStateToMaybe
+                |> Maybe.map Field.valueToRawString
                 |> Maybe.andThen (\s -> Decode.decodeString DecodeX.datetime ("\"" ++ s ++ "\"") |> Result.toMaybe)
 
         mbduree =
             Dict.get dureeFieldId model.groupsStates
                 |> Maybe.andThen fieldStateToMaybe
+                |> Maybe.map Field.valueToRawString
                 |> Maybe.andThen String.toFloat
 
         mbgroup =
             Dict.get model.groupId model.groupsStates
                 |> Maybe.andThen fieldStateToMaybe
-                |> Maybe.andThen Field.stringToChoiceId
-                |> Maybe.map Field.choiceIdToRawString
+                |> Maybe.map Field.valueToRawString
 
         mbsubgroup =
             Maybe.andThen (\subgroupId -> Dict.get subgroupId model.groupsStates) model.subgroupId
                 |> Maybe.andThen fieldStateToMaybe
-                |> Maybe.andThen Field.stringToChoiceId
-                |> Maybe.map Field.choiceIdToRawString
+                |> Maybe.map Field.valueToRawString
     in
     case ( mbgroup, mbdebut, mbduree ) of
         ( Just group, Just debut, Just duree ) ->
@@ -2361,8 +2581,8 @@ validateNewMoment model =
             Nothing
 
 
-fieldsFromSelection : Time.Zone -> DurationUnit -> Timeline.Models.Selection -> Dict String Record -> List String -> Dict String FieldState
-fieldsFromSelection zone durationUnit selids allRecords fields =
+statesFromSelection : Time.Zone -> DurationUnit -> Timeline.Models.Selection -> Dict String Record -> Dict String Field -> Dict String FieldState
+statesFromSelection zone durationUnit selids allRecords fields =
     let
         selSet =
             Timeline.Models.selectionToSet selids
@@ -2389,11 +2609,11 @@ fieldsFromSelection zone durationUnit selids allRecords fields =
                     Error NoValue ""
 
                 [ debut ] ->
-                    Time.millisToPosix debut |> Iso8601.toDateTimeString zone |> Val
+                    Time.millisToPosix debut |> Iso8601.toDateTimeString zone |> Field.VString |> Val
 
                 _ :: _ ->
                     List.minimum debuts
-                        |> Maybe.map (Time.millisToPosix >> Iso8601.toDateTimeString zone >> Val)
+                        |> Maybe.map (Time.millisToPosix >> Iso8601.toDateTimeString zone >> Field.VString >> Val)
                         |> Maybe.withDefault (Error NoValue "")
 
         mbFinVal =
@@ -2402,7 +2622,7 @@ fieldsFromSelection zone durationUnit selids allRecords fields =
                     Error NoValue "" |> Just
 
                 [ fin ] ->
-                    Time.millisToPosix fin |> Iso8601.toDateTimeString zone |> Val |> Just
+                    Time.millisToPosix fin |> Iso8601.toDateTimeString zone |> Field.VString |> Val |> Just
 
                 _ ->
                     Nothing
@@ -2413,34 +2633,43 @@ fieldsFromSelection zone durationUnit selids allRecords fields =
                     Error NoValue ""
 
                 [ duree ] ->
-                    Val (String.fromFloat (duree / secondsForDurationUnit durationUnit))
+                    Val (Field.VString (String.fromFloat (duree / secondsForDurationUnit durationUnit)))
 
                 _ ->
                     Multi
     in
     List.map
-        (\key ->
+        (\field ->
             let
                 values =
-                    List.map (Dict.get key) sel
+                    List.filterMap (Dict.get field.id) sel
                         |> ListX.unique
             in
-            ( key
-            , case values of
-                [] ->
-                    Error NoValue ""
+            ( field.id
+            , case field.ofType of
+                Field.ChoiceList _ ->
+                    Field.valueListConcat values
+                        |> Field.valueMapList ListX.unique
+                        |> Val
 
-                [ Nothing ] ->
-                    Error NoValue ""
-
-                [ Just one ] ->
-                    Val one
+                Field.RefList _ ->
+                    Field.valueListConcat values
+                        |> Field.valueMapList ListX.unique
+                        |> Val
 
                 _ ->
-                    Multi
+                    case values of
+                        [] ->
+                            Error NoValue ""
+
+                        [ one ] ->
+                            Val one
+
+                        _ ->
+                            Multi
             )
         )
-        fields
+        (Dict.values fields)
         |> Dict.fromList
         |> Dict.insert debutFieldId debutVal
         |> (case mbFinVal of
@@ -2595,8 +2824,8 @@ type alias Record =
     , groupeId : String
     , sousGroupe : Maybe String
     , sousGroupeId : Maybe String
-    , contenu : List String
-    , fields : Dict String String
+    , contenu : List ( String, FValue )
+    , fields : Dict String FValue
     , totals : List Float
     , couleur : String
     , isLocked : Bool
@@ -2645,7 +2874,7 @@ dureeField trans =
 
 
 defaultChoice =
-    { id = Field.ChoiceString "def"
+    { id = Field.VString "def"
     , label = "def"
     , textColor = ""
     , backgroundColor = ""
@@ -2657,7 +2886,7 @@ defaultChoice =
 
 
 type FieldState
-    = Val String
+    = Val Field.FValue
     | Multi
     | Error Error String
 
@@ -2734,12 +2963,12 @@ recordDecoder =
                     , Decode.null 25200
                     ]
            )
-        |> required "groupe" anyDecoder
         |> required "groupeId" anyDecoder
-        |> optional "sousGroupe" (Decode.string |> Decode.map Just) Nothing
-        |> optional "sousGroupeId" (Decode.string |> Decode.map Just) Nothing
-        |> optional "contenu" (Decode.list anyDecoder) []
-        |> optional "fields" (Decode.dict anyDecoder) Dict.empty
+        |> required "groupeId" anyDecoder
+        |> optional "sousGroupeId" (anyDecoder |> Decode.map Just) Nothing
+        |> optional "sousGroupeId" (anyDecoder |> Decode.map Just) Nothing
+        |> optional "contenu" (Decode.keyValuePairs Field.valueDecoder) []
+        |> optional "fields" (Decode.dict Field.valueDecoder) Dict.empty
         |> optional "totals" (Decode.list numericOrBoolDecoder) []
         |> required "couleur" (Decode.oneOf [ Decode.maybe Decode.string, Decode.nullable Decode.string ] |> Decode.map (Maybe.withDefault ""))
         |> optional "isLocked" Decode.bool False
@@ -3159,9 +3388,7 @@ input[type="checkbox"] {
 
 .selectize__item {
     display: block;
-    padding: 0px 3px;
     cursor: pointer;
-    line-height: 24px;
 }
 
 .selectize__item--key-selected {

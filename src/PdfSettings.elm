@@ -532,7 +532,7 @@ sortSystem =
 
 
 defaultChoice =
-    { id = Field.ChoiceString "def"
+    { id = Field.VString "def"
     , label = "def"
     , textColor = "#000"
     , backgroundColor = "#EEE"
