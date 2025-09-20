@@ -148,6 +148,9 @@ valueToFloat fv =
         VFloat float ->
             Just float
 
+        VInt int ->
+            Just (toFloat int)
+
         _ ->
             Nothing
 
@@ -434,13 +437,34 @@ fieldTypeDecoder defaultChoice =
 
 numberFormatDecoder : Decoder NumberFormat
 numberFormatDecoder =
-    Decode.map6 NumberFormat
-        (Decode.oneOf [ numberModeDecoder, Decode.succeed Standard ])
-        (Decode.oneOf [ Decode.field "numSign" numSignDecoder, Decode.succeed Minus ])
-        (Decode.oneOf [ Decode.field "wrap" Decode.bool, Decode.succeed False ])
-        (Decode.oneOf [ Decode.field "alignment" alignDecoder, Decode.succeed Right ])
-        (Decode.oneOf [ Decode.field "decimals" Decode.int, Decode.succeed 0 ])
-        (Decode.oneOf [ Decode.field "maxDecimals" Decode.int, Decode.succeed 10 ])
+    Decode.oneOf [ numberModeDecoder, Decode.succeed Standard ]
+        |> Decode.andThen
+            (\mode ->
+                let
+                    ( decimals, maxDecimals ) =
+                        case mode of
+                            Standard ->
+                                ( 0, 10 )
+
+                            Currency _ ->
+                                ( 2, 2 )
+
+                            Thousands ->
+                                ( 0, 3 )
+
+                            Percent ->
+                                ( 0, 0 )
+
+                            Scientific ->
+                                ( 0, 3 )
+                in
+                Decode.map5 (NumberFormat mode)
+                    (Decode.oneOf [ Decode.field "numSign" numSignDecoder, Decode.succeed Minus ])
+                    (Decode.oneOf [ Decode.field "wrap" Decode.bool, Decode.succeed False ])
+                    (Decode.oneOf [ Decode.field "alignment" alignDecoder, Decode.succeed Right ])
+                    (Decode.oneOf [ Decode.field "decimals" Decode.int, Decode.succeed decimals ])
+                    (Decode.oneOf [ Decode.field "maxDecimals" Decode.int, Decode.succeed maxDecimals ])
+            )
 
 
 numberModeDecoder : Decoder NumberMode
