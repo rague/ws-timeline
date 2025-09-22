@@ -23,6 +23,7 @@ import Moment
 import Money
 import Phosphor exposing (IconWeight(..))
 import Platform.Cmd as Cmd
+import Process
 import Selectize
 import Selectize.Internal
 import Set
@@ -1198,16 +1199,22 @@ sizeToMsg w h =
     WindowResize { width = w, height = h }
 
 
-addError : String -> Model -> Model
+addError : String -> Model -> ( Model, Cmd Msg )
 addError err model =
     if ListX.find (\( _, e ) -> e == err) model.error == Nothing then
-        { model
-            | error = ( model.errorId, err ) :: List.take 4 model.error
-            , errorId = model.errorId + 1
-        }
+        let
+            errorId =
+                model.errorId
+        in
+        ( { model
+            | error = ( errorId, err ) :: List.take 4 model.error
+            , errorId = errorId + 1
+          }
+        , Task.perform (always (CloseError errorId)) (Process.sleep 8000)
+        )
 
     else
-        model
+        ( model, Cmd.none )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -1225,7 +1232,7 @@ update msg model =
         ChangeSelection data ->
             case Decode.decodeValue (Decode.list (Decode.field "id" Decode.int)) data of
                 Err err ->
-                    ( addError (Decode.errorToString err) model, Cmd.none )
+                    addError (Decode.errorToString err) model
 
                 Ok ids ->
                     let
@@ -1245,7 +1252,7 @@ update msg model =
         ChangeOptions data ->
             case Decode.decodeValue optionsDecoder data of
                 Err err ->
-                    ( addError (Decode.errorToString err) model, Cmd.none )
+                    addError (Decode.errorToString err) model
 
                 Ok options ->
                     ( { model
@@ -1295,7 +1302,17 @@ update msg model =
             ( { model | box = b }, Cmd.none )
 
         OptionsBounceMsg ->
-            ( model, encodeOptions model.options |> updateOptions )
+            let
+                newBounce =
+                    Bounce.pop model.bounce
+            in
+            ( { model | bounce = newBounce }
+            , if Bounce.steady newBounce then
+                encodeOptions model.options |> updateOptions
+
+              else
+                Cmd.none
+            )
 
         ChangeText v field str ->
             ( case v of
@@ -1519,7 +1536,7 @@ update msg model =
             ( { model | error = List.filter (\( iderr, _ ) -> iderr /= id) model.error }, Cmd.none )
 
         AddError str ->
-            ( addError str model, Cmd.none )
+            addError str model
 
         GotHelp res ->
             case res of
@@ -1527,7 +1544,7 @@ update msg model =
                     ( { model | help = str }, Cmd.none )
 
                 Err _ ->
-                    ( addError "Can't load help file : Http error" model, Cmd.none )
+                    addError "Can't load help file : Http error" model
 
         GotTranslations res ->
             case res of
@@ -1535,7 +1552,7 @@ update msg model =
                     ( { model | translations = trans :: model.translations }, Cmd.none )
 
                 Err _ ->
-                    ( addError "Can't load translation file : Http error" model, Cmd.none )
+                    addError "Can't load translation file : Http error" model
 
         ShowModal modal ->
             ( { model | showModal = modal }, Cmd.none )
@@ -1561,7 +1578,7 @@ update msg model =
                         Vertical ->
                             toFloat model.options.groupsSize / 2 |> round
             in
-            ( { model
+            { model
                 | timelineState =
                     Timeline.changeDirection dir model.timelineState
                         |> Timeline.changeLineSize size
@@ -1578,29 +1595,27 @@ update msg model =
                             )
                         |> Timeline.changeGroupsSize groupsSize
                 , options = { options | direction = dir }
-              }
-            , Bounce.delay 500 OptionsBounceMsg
-            )
+            }
+                |> bounceOptions
 
         UpdateWrap bool ->
             let
                 options =
                     model.options
             in
-            ( { model
+            { model
                 | timelineState =
                     Timeline.setWrapText bool model.timelineState
                 , options = { options | wrapText = bool }
-              }
-            , Bounce.delay 500 OptionsBounceMsg
-            )
+            }
+                |> bounceOptions
 
         UpdateCountMoments bool ->
             let
                 options =
                     model.options
             in
-            ( { model
+            { model
                 | options = { options | countMoments = bool }
                 , timelineState =
                     model.timelineState
@@ -1614,16 +1629,15 @@ update msg model =
                                    )
                             )
                 , totalState = Timeline.reinit (addTotals { model | options = { options | countMoments = bool } }) model.totalState
-              }
-            , Bounce.delay 500 OptionsBounceMsg
-            )
+            }
+                |> bounceOptions
 
         UpdateShowSubtotals bool ->
             let
                 options =
                     model.options
             in
-            ( { model
+            { model
                 | timelineState =
                     model.timelineState
                         |> Timeline.reinit
@@ -1636,16 +1650,15 @@ update msg model =
                                    )
                             )
                 , options = { options | displaySubtotals = bool }
-              }
-            , Bounce.delay 500 OptionsBounceMsg
-            )
+            }
+                |> bounceOptions
 
         UpdateDurationUnit du ->
             let
                 options =
                     model.options
             in
-            ( { model
+            { model
                 | durationUnit = du
                 , options = { options | durationUnit = du }
                 , editableStates =
@@ -1654,20 +1667,25 @@ update msg model =
                         model.timelineState.selection
                         model.records
                         (Dict.filter (\_ f -> List.member f.id model.editableFields) model.fields)
-              }
-            , Bounce.delay 500 OptionsBounceMsg
-            )
+            }
+                |> bounceOptions
 
         UpdateColorScheme maybe ->
             let
                 options =
                     model.options
             in
-            ( { model
+            { model
                 | options = { options | colorScheme = maybe }
-              }
-            , Bounce.delay 500 OptionsBounceMsg
-            )
+            }
+                |> bounceOptions
+
+
+bounceOptions : Model -> ( Model, Cmd Msg )
+bounceOptions model =
+    ( { model | bounce = Bounce.push model.bounce }
+    , Bounce.delay 500 OptionsBounceMsg
+    )
 
 
 timelineUpdate : Timeline.Msg -> Model -> ( Model, Cmd Msg )
@@ -1754,7 +1772,7 @@ timelineUpdate tmsg ({ options } as model) =
                         )
 
                     else
-                        ( addError "Group is not editable (formula column)" model, Cmd.none )
+                        addError "Group is not editable (formula column)" model
 
                 Timeline.Action.CreateSection maybe from to ->
                     if groupFieldEditable then
@@ -1777,10 +1795,10 @@ timelineUpdate tmsg ({ options } as model) =
                                 ( model, Cmd.none )
 
                     else
-                        ( addError "Group is not editable (formula column)" model, Cmd.none )
+                        addError "Group is not editable (formula column)" model
 
                 Timeline.Action.ChangeZoom { start, zoom, sectionOffsetY, lineSize } ->
-                    ( { model
+                    { model
                         | options =
                             { options
                                 | start = start
@@ -1794,9 +1812,8 @@ timelineUpdate tmsg ({ options } as model) =
                                         lineSize
                             }
                         , totalState = Timeline.changeStartAndZoom start zoom model.totalState
-                      }
-                    , Bounce.delay 500 OptionsBounceMsg
-                    )
+                    }
+                        |> bounceOptions
 
                 Timeline.Action.SelectSections sel ->
                     ( { model
@@ -1834,15 +1851,14 @@ timelineUpdate tmsg ({ options } as model) =
                             else
                                 groupsSize
                     in
-                    ( { model
+                    { model
                         | options =
                             { options
                                 | groupsSize = size
                             }
                         , totalState = Timeline.changeGroupsSize groupsSize model.totalState
-                      }
-                    , Bounce.delay 500 OptionsBounceMsg
-                    )
+                    }
+                        |> bounceOptions
 
                 Timeline.Action.NoAction ->
                     ( model, Cmd.none )
@@ -1935,7 +1951,7 @@ totalsUpdate tmsg ({ options } as model) =
     in
     case action of
         Timeline.Action.ChangeZoom { start, zoom } ->
-            ( { model
+            { model
                 | options =
                     { options
                         | start = start
@@ -1943,9 +1959,9 @@ totalsUpdate tmsg ({ options } as model) =
                     }
                 , timelineState = Timeline.changeStartAndZoom start zoom model.timelineState
                 , totalState = state
-              }
-            , Cmd.batch [ Bounce.delay 500 OptionsBounceMsg, Cmd.map TotalsMsg tcmd ]
-            )
+            }
+                |> bounceOptions
+                |> Tuple.mapSecond (\c -> Cmd.batch [ c, Cmd.map TotalsMsg tcmd ])
 
         _ ->
             ( model, Cmd.none )
@@ -1955,7 +1971,7 @@ receiveData : Value -> Model -> ( Model, Cmd Msg )
 receiveData data model =
     case Decode.decodeValue (receiveDecoder model.timelineState.zone) data of
         Err err ->
-            ( addError (Decode.errorToString err)
+            addError (Decode.errorToString err)
                 { model
                     | timelineState = Timeline.reinit [] model.timelineState
                     , records = Dict.empty
@@ -1970,8 +1986,6 @@ receiveData data model =
                     , showInspector = False
                     , hasCreated = False
                 }
-            , Cmd.none
-            )
 
         Ok { records, content, maybeSelection, fields, editable, totals, group, subgroup, colorScheme } ->
             let
