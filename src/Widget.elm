@@ -6,8 +6,7 @@ import Browser.Dom
 import Browser.Events
 import Date
 import Dict exposing (Dict)
-import Element exposing (Color)
-import Field exposing (ChoiceRecord, FValue, Field)
+import Field exposing (FValue, Field)
 import Html
 import Html.Attributes as HA
 import Html.Events
@@ -1062,6 +1061,9 @@ fieldsView viewType ({ translations } as model) fields states =
                                                 Field.DateTime ->
                                                     "datetime-local"
 
+                                                Field.Date ->
+                                                    "date"
+
                                                 Field.Bool ->
                                                     "checkbox"
 
@@ -1951,7 +1953,7 @@ totalsUpdate tmsg ({ options } as model) =
 
 receiveData : Value -> Model -> ( Model, Cmd Msg )
 receiveData data model =
-    case Decode.decodeValue receiveDecoder data of
+    case Decode.decodeValue (receiveDecoder model.timelineState.zone) data of
         Err err ->
             ( addError (Decode.errorToString err)
                 { model
@@ -2947,10 +2949,10 @@ encodeColorScheme cs =
             Encode.string "dark"
 
 
-receiveDecoder : Decoder ReceiveData
-receiveDecoder =
+receiveDecoder : Time.Zone -> Decoder ReceiveData
+receiveDecoder zone =
     Decode.succeed ReceiveData
-        |> custom (Decode.field "rows" <| Decode.list recordDecoder)
+        |> custom (Decode.field "rows" <| Decode.list (recordDecoder zone))
         |> custom (Decode.maybe <| Decode.field "selection" (Decode.list Decode.int))
         |> custom (Decode.field "fields" (Decode.list (Field.decoder defaultChoice)))
         |> custom (Decode.field "content" <| Decode.list Decode.string)
@@ -2961,8 +2963,8 @@ receiveDecoder =
         |> custom (Decode.field "colorScheme" colorSchemeDecoder)
 
 
-recordDecoder : Decoder Record
-recordDecoder =
+recordDecoder : Time.Zone -> Decoder Record
+recordDecoder zone =
     Decode.succeed Record
         |> required "id" Decode.int
         |> required "date" (DecodeX.datetime |> Decode.map Time.posixToMillis)
@@ -2976,8 +2978,8 @@ recordDecoder =
         |> required "groupeId" anyDecoder
         |> optional "sousGroupeId" (anyDecoder |> Decode.map Just) Nothing
         |> optional "sousGroupeId" (anyDecoder |> Decode.map Just) Nothing
-        |> optional "contenu" (Decode.keyValuePairs Field.valueDecoder) []
-        |> optional "fields" (Decode.dict Field.valueDecoder) Dict.empty
+        |> optional "contenu" (Decode.keyValuePairs (Field.valueDecoder zone)) []
+        |> optional "fields" (Decode.dict (Field.valueDecoder zone)) Dict.empty
         |> optional "totals" (Decode.list numericOrBoolDecoder) []
         |> required "couleur" (Decode.oneOf [ Decode.maybe Decode.string, Decode.nullable Decode.string ] |> Decode.map (Maybe.withDefault ""))
         |> optional "isLocked" Decode.bool False

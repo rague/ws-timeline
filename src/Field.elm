@@ -3,11 +3,13 @@ module Field exposing (Align(..), ChoiceRecord, Currency, FValue(..), Field, Fie
 import Dict exposing (Dict)
 import FormatNumber as FNum
 import FormatNumber.Locales as FNL
+import Iso8601
 import Json.Decode as Decode exposing (Decoder, Value)
 import Json.Decode.Extra as DecodeX
 import Json.Decode.Pipeline exposing (hardcoded, optional, required)
 import Json.Encode as Encode
 import Money
+import Time
 
 
 type alias Field =
@@ -104,6 +106,7 @@ type FValue
     | VFloat Float
     | VBool Bool
     | VList (List FValue)
+    | VNull
 
 
 valueMapList : (List FValue -> List FValue) -> FValue -> FValue
@@ -138,6 +141,9 @@ valueToInt fv =
         VInt int ->
             Just int
 
+        VNull ->
+            Just 0
+
         _ ->
             Nothing
 
@@ -150,6 +156,9 @@ valueToFloat fv =
 
         VInt int ->
             Just (toFloat int)
+
+        VNull ->
+            Just 0
 
         _ ->
             Nothing
@@ -180,6 +189,9 @@ valueToRawString cid =
                    )
                 ++ "]"
 
+        VNull ->
+            ""
+
 
 encodeValue : FValue -> Value
 encodeValue cid =
@@ -202,16 +214,34 @@ encodeValue cid =
         VList vals ->
             Encode.list encodeValue vals
 
+        VNull ->
+            Encode.null
 
-valueDecoder : Decoder FValue
-valueDecoder =
+
+valueDecoder : Time.Zone -> Decoder FValue
+valueDecoder zone =
     Decode.oneOf
         [ Decode.map VString Decode.string
         , Decode.map VInt Decode.int
         , Decode.map VFloat Decode.float
         , Decode.map VBool Decode.bool
-        , Decode.map VList (Decode.list (Decode.lazy (\_ -> valueDecoder)))
+        , Decode.map VList (Decode.list (Decode.lazy (\_ -> valueDecoder zone)))
+        , dateTimeDecoder zone
+        , dateDecoder zone
+        , Decode.null VNull
         ]
+
+
+dateTimeDecoder : Time.Zone -> Decoder FValue
+dateTimeDecoder zone =
+    Decode.field "value" (DecodeX.datetime |> Decode.map (Iso8601.toDateTimeString zone >> VString))
+        |> DecodeX.when (Decode.field "type" Decode.string) (\s -> s == "datetime")
+
+
+dateDecoder : Time.Zone -> Decoder FValue
+dateDecoder zone =
+    Decode.field "value" (DecodeX.datetime |> Decode.map (Iso8601.toDateString zone >> VString))
+        |> DecodeX.when (Decode.field "type" Decode.string) (\s -> s == "date")
 
 
 decoder : ChoiceRecord -> Decoder Field

@@ -628,17 +628,15 @@ window.addEventListener('load', async (event) => {
           delete clone.sousGroupe;
         }
 
-        clone.contenu = Object.fromEntries(mappings.contenu.map((key, idx) =>
-          (clone.contenu[idx]?.constructor?.name == "Reference") ?
-            [key, clone.contenu[idx].rowId]
-            : [key, clone.contenu[idx]]
-        ));
+        clone.contenu = Object.fromEntries(mappings.contenu.map((key, idx) => [key, parseField(clone.contenu[idx])]));
+        clone.fields = Object.fromEntries(mappings.fields.map((key, idx) => [key, parseField(clone.fields[idx])]));
 
-        clone.fields = Object.fromEntries(mappings.fields.map((key, idx) =>
-          (clone.fields[idx]?.constructor?.name == "Reference") ?
-            [key, clone.fields[idx].rowId]
-            : [key, clone.fields[idx]]
-        ));
+
+        // clone.fields = Object.fromEntries(mappings.fields.map((key, idx) =>
+        //   (clone.fields[idx]?.constructor?.name == "Reference") ?
+        //     [key, clone.fields[idx].rowId]
+        //     : [key, clone.fields[idx]]
+        // ));
 
         return clone;
       });
@@ -688,6 +686,22 @@ window.addEventListener('load', async (event) => {
 
 });
 
+
+function parseField(field) {
+  switch (field?.constructor?.name) {
+    case "Reference":
+      return field.rowId;
+      break;
+    case "GristDateTime":
+      return { type: "datetime", value: field.toISOString() };
+      break;
+    case "GristDate":
+      return { type: "date", value: field.toISOString() };
+      break;
+    default:
+      return field
+  }
+}
 
 // We have no good way yet to get the type of a mapped column when multiple types are allowed. We
 // get it via the metadata tables instead. There is no good way to know when a column's type is
