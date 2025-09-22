@@ -629,13 +629,13 @@ window.addEventListener('load', async (event) => {
         }
 
         clone.contenu = Object.fromEntries(mappings.contenu.map((key, idx) =>
-          (clone.contenu[idx].constructor?.name == "Reference") ?
+          (clone.contenu[idx]?.constructor?.name == "Reference") ?
             [key, clone.contenu[idx].rowId]
             : [key, clone.contenu[idx]]
         ));
 
         clone.fields = Object.fromEntries(mappings.fields.map((key, idx) =>
-          (clone.fields[idx].constructor?.name == "Reference") ?
+          (clone.fields[idx]?.constructor?.name == "Reference") ?
             [key, clone.fields[idx].rowId]
             : [key, clone.fields[idx]]
         ));
