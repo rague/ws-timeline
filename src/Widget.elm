@@ -173,6 +173,11 @@ main =
         , view = view
         , subscriptions =
             \model ->
+                let
+                    displayTotals =
+                        not (List.isEmpty model.totalFields)
+                            || model.options.countMoments
+                in
                 Sub.batch
                     [ setRecords Receive
                     , setSelection ChangeSelection
@@ -180,7 +185,11 @@ main =
                     , setError AddError
                     , Browser.Events.onResize sizeToMsg
                     , Sub.map TimelineMsg (Timeline.subscriptions model.timelineState)
-                    , Sub.map TotalsMsg (Timeline.subscriptions model.totalState)
+                    , if displayTotals then
+                        Sub.map TotalsMsg (Timeline.subscriptions model.totalState)
+
+                      else
+                        Sub.none
                     , case model.showModal of
                         None ->
                             Sub.none
