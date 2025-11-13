@@ -113,7 +113,7 @@ sectionsWheel box rect { x, y, dx, dy, altKey, shiftKey } =
             getter.h ( x, y )
 
         ( movex, movey ) =
-            if shiftKey then
+            if shiftKey && dx == 0 then
                 ( dy, 0 )
 
             else
@@ -631,7 +631,7 @@ groupsWheel box rect { clientY, dx, dy, altKey, shiftKey } =
                 directionGetter box.direction
 
             ( movex, movey ) =
-                if shiftKey then
+                if shiftKey && dx == 0 then
                     ( dy, 0 )
 
                 else
