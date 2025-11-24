@@ -83,6 +83,7 @@ type Msg
     | UpdateShowSubtotals Bool
     | UpdateCountMoments Bool
     | UpdateColorScheme (Maybe ColorScheme)
+    | UpdateSelectionPrevent Bool
 
 
 type View
@@ -263,7 +264,7 @@ init flags =
       , groupId = ""
       , subgroupId = Nothing
       , totalFields = []
-      , options = Options (Time.millisToPosix 0) 0 0 38 Horizontal False du False False Nothing groupsSizeDefault
+      , options = Options (Time.millisToPosix 0) 0 0 38 Horizontal False du False False Nothing groupsSizeDefault False
       , records = Dict.empty
       , selectStates = Dict.empty
       , focus = ""
@@ -524,6 +525,16 @@ settingsView model =
                     ]
                     []
                 , Html.text (T.displaySubtotals model.translations)
+                ]
+            , Html.label [ HA.style "margin-top" "20px" ] [ Html.text (T.advanced model.translations) ]
+            , Html.label [ HA.style "margin-top" "5px" ]
+                [ Html.input
+                    [ HA.type_ "checkbox"
+                    , HA.checked (not model.options.preventSelectionChange)
+                    , Html.Events.onCheck (not >> UpdateSelectionPrevent)
+                    ]
+                    []
+                , Html.text (T.selectionPropagation model.translations)
                 ]
             ]
         ]
@@ -1677,6 +1688,16 @@ update msg model =
             in
             { model
                 | options = { options | colorScheme = maybe }
+            }
+                |> bounceOptions
+
+        UpdateSelectionPrevent bool ->
+            let
+                options =
+                    model.options
+            in
+            { model
+                | options = { options | preventSelectionChange = bool }
             }
                 |> bounceOptions
 
@@ -3024,6 +3045,7 @@ type alias Options =
     , countMoments : Bool
     , colorScheme : Maybe ColorScheme
     , groupsSize : Int
+    , preventSelectionChange : Bool
     }
 
 
@@ -3041,6 +3063,7 @@ optionsDecoder =
         |> optional "countMoments" Decode.bool False
         |> optional "colorScheme" (Decode.maybe colorSchemeDecoder) Nothing
         |> optional "groupsSize" Decode.int groupsSizeDefault
+        |> optional "preventSelectionChange" Decode.bool False
 
 
 encodeOptions : Options -> Value
@@ -3057,6 +3080,7 @@ encodeOptions options =
         , ( "countMoments", Encode.bool options.countMoments )
         , ( "colorScheme", Maybe.map encodeColorScheme options.colorScheme |> Maybe.withDefault Encode.null )
         , ( "groupsSize", Encode.int options.groupsSize )
+        , ( "preventSelectionChange", Encode.bool options.preventSelectionChange )
         ]
 
 

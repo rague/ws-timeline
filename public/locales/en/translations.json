@@ -39,5 +39,7 @@
     "colorScheme": "Timeline colors",
     "light": "Light",
     "dark": "Dark",
-    "auto": "Auto"
+    "auto": "Auto",
+    "advanced": "Advanced settings",
+    "selectionPropagation": "Allow selection changes to propagate to linked widgets"
 }

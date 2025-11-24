@@ -283,7 +283,7 @@ window.addEventListener('load', async (event) => {
 
   app.ports.selectRecords.subscribe(sel => {
     try {
-      grist.setSelectedRows(sel);
+      selectRecord(sel);
       newSelection = sel;
       // console.log("WS: selectRecords newSelection", newSelection)
     } catch (err) {
@@ -580,6 +580,9 @@ window.addEventListener('load', async (event) => {
     ]
   });
 
+  grist.onRecord((record) => {
+    console.log("WS: SINGLE RECORD", record);
+  })
   grist.onRecords(async (records, mappings) => {
     if (mappings) {
       _mappings = mappings;
@@ -667,7 +670,7 @@ window.addEventListener('load', async (event) => {
         argsWithSel.selection = newSelection;
       }
       app.ports.setRecords.send(argsWithSel);
-      if (newSelection) grist.setSelectedRows(newSelection);
+      if (newSelection) selectRecord(newSelection);
     }
 
 
@@ -684,6 +687,10 @@ window.addEventListener('load', async (event) => {
     if (e.tableId && e.mappingsChange) { colTypesFetcher.gotNewMappings(e.tableId); }
   });
 
+  selectRecord = async (sel) => {
+    if (options?.preventSelectionChange) return;
+    grist.setSelectedRows(sel);
+  }
 });
 
 

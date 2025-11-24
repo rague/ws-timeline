@@ -8,6 +8,11 @@ hours translations =
     I18Next.tf translations "Hours"
 
 
+advanced : List I18Next.Translations -> String
+advanced translations =
+    I18Next.tf translations "advanced"
+
+
 auto : List I18Next.Translations -> String
 auto translations =
     I18Next.tf translations "auto"
@@ -103,6 +108,11 @@ hoursShort translations =
     I18Next.tf translations "hoursShort"
 
 
+isGlobal : List I18Next.Translations -> String
+isGlobal translations =
+    I18Next.tf translations "isGlobal"
+
+
 isLocked : List I18Next.Translations -> String
 isLocked translations =
     I18Next.tf translations "isLocked"
@@ -141,6 +151,11 @@ multiple translations =
 newMoment : List I18Next.Translations -> String
 newMoment translations =
     I18Next.tf translations "newMoment"
+
+
+selectionPropagation : List I18Next.Translations -> String
+selectionPropagation translations =
+    I18Next.tf translations "selectionPropagation"
 
 
 settings : List I18Next.Translations -> String

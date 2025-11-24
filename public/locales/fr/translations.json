@@ -39,5 +39,7 @@
     "colorScheme": "Couleurs de la timeline",
     "light": "Claires",
     "dark": "Sombres",
-    "auto": "Auto"
+    "auto": "Auto",
+    "advanced": "Paramètres avancés",
+    "selectionPropagation": "Autoriser la propagation des changements de sélection aux widgets liés"
 }

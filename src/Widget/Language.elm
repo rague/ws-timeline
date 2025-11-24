@@ -9,6 +9,7 @@ defaultLanguage =
         [ ( ""
           , I18Next.object
                 [ ( "Hours", I18Next.string "Hours" )
+                , ( "advanced", I18Next.string "Advanced settings" )
                 , ( "auto", I18Next.string "Auto" )
                 , ( "color", I18Next.string "Color" )
                 , ( "colorScheme", I18Next.string "Timeline colors" )
@@ -30,6 +31,7 @@ defaultLanguage =
                 , ( "groupBy", I18Next.string "Group by" )
                 , ( "horizontal", I18Next.string "Horizontal" )
                 , ( "hoursShort", I18Next.string "h" )
+                , ( "isGlobal", I18Next.string "Is global" )
                 , ( "isLocked", I18Next.string "Is locked" )
                 , ( "light", I18Next.string "Light" )
                 , ( "minutes", I18Next.string "Minutes" )
@@ -38,6 +40,10 @@ defaultLanguage =
                 , ( "moment_plural", I18Next.string "moments" )
                 , ( "multiple", I18Next.string "multiple" )
                 , ( "newMoment", I18Next.string "New moment" )
+                , ( "selectionPropagation"
+                  , I18Next.string
+                        "Allow selection changes to propagate to linked widgets"
+                  )
                 , ( "settings", I18Next.string "Settings" )
                 , ( "startDate", I18Next.string "Start date" )
                 , ( "subgroupBy", I18Next.string "Then group by" )
